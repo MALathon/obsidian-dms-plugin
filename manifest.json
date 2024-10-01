@@ -1,1 +1,10 @@
- 
+{
+  "id": "dms-plugin",
+  "name": "DMS Plugin",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "A plugin for managing external links in Obsidian",
+  "author": "Mark Lifson",
+  "authorUrl": "https://github.com/malathon",
+  "isDesktopOnly": false
+}
