@@ -9,7 +9,7 @@ export interface DMSPluginSettings {
 export interface ExternalLink {
     title: string;
     path: string;
-    category: string;
+    categories: string[]; // Changed from category to categories
     audience: string[];
     tags: string[];
     notes: string;

@@ -54,7 +54,7 @@ export class ExternalLinkService {
         if (index !== -1) {
             this.externalLinks[index] = updatedLink;
             await this.saveExternalLinks();
-            await this.createProxyNote(updatedLink);
+            await this.updateProxyNote(oldLink, updatedLink);
         }
     }
 
@@ -73,7 +73,7 @@ title: ${link.title}
 url: ${link.path}
 fileType: ${link.fileType}
 audience: ${link.audience.join(', ')}
-category: ${link.category}
+categories: ${link.categories.join(', ')} // Changed from category to categories
 tags: ${link.tags.join(', ')}
 createdDate: ${new Date(link.createdDate).toISOString()}
 size: ${link.size}
@@ -86,8 +86,29 @@ ${link.notes}`;
         try {
             await this.app.vault.create(filePath, content);
         } catch (error) {
-            console.error('Failed to create proxy note:', getErrorMessage(error));
-            new Notice('Failed to create proxy note. Check the console for details.');
+            if (error.message.includes('File already exists')) {
+                await this.app.vault.modify(this.app.vault.getAbstractFileByPath(filePath) as TFile, content);
+            } else {
+                console.error('Failed to create proxy note:', getErrorMessage(error));
+                new Notice('Failed to create proxy note. Check the console for details.');
+            }
+        }
+    }
+
+    async updateProxyNote(oldLink: ExternalLink, updatedLink: ExternalLink): Promise<void> {
+        const oldFileName = sanitizeFilePath(`${oldLink.title}.md`);
+        const newFileName = sanitizeFilePath(`${updatedLink.title}.md`);
+        const oldFilePath = `${this.settings.proxyNotesFolder}/${oldFileName}`;
+        const newFilePath = `${this.settings.proxyNotesFolder}/${newFileName}`;
+
+        try {
+            if (oldFileName !== newFileName) {
+                await this.app.vault.rename(this.app.vault.getAbstractFileByPath(oldFilePath) as TFile, newFilePath);
+            }
+            await this.createProxyNote(updatedLink);
+        } catch (error) {
+            console.error('Failed to update proxy note:', getErrorMessage(error));
+            new Notice('Failed to update proxy note. Check the console for details.');
         }
     }
 
@@ -107,7 +128,7 @@ ${link.notes}`;
     }
 
     getCategories(): string[] {
-        return Array.from(new Set(this.externalLinks.map(link => link.category)));
+        return Array.from(new Set(this.externalLinks.flatMap(link => link.categories)));
     }
 
     getTags(): string[] {
@@ -118,7 +139,17 @@ ${link.notes}`;
         for (const link of this.externalLinks) {
             if (!link.tags.includes(tag)) {
                 link.tags.push(tag);
-                await this.createProxyNote(link);
+                await this.updateProxyNote(link, link);
+            }
+        }
+        await this.saveExternalLinks();
+    }
+
+    async addNewCategory(category: string): Promise<void> {
+        for (const link of this.externalLinks) {
+            if (!link.categories.includes(category)) {
+                link.categories.push(category);
+                await this.updateProxyNote(link, link);
             }
         }
         await this.saveExternalLinks();
@@ -146,6 +177,10 @@ ${link.notes}`;
         path = path.replace(/\\/g, '/');
         // Remove any duplicated slashes (except for the double slash after the colon)
         path = path.replace(/([^:])\/+/g, '$1/');
+        // Ensure the path starts with a drive letter for Windows paths
+        if (!path.match(/^[a-zA-Z]:/)) {
+            path = `C:${path}`; // Assuming C: drive, adjust if necessary
+        }
         // Encode only specific characters
         return path.replace(/%/g, '%25')
                    .replace(/\s/g, '%20')

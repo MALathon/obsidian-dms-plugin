@@ -18,22 +18,20 @@ export default class DMSPlugin extends Plugin {
         this.addCommand({
             id: 'open-dms-view',
             name: 'Open DMS View',
-            callback: () => this.activateView(),
+            callback: () => this.activateDMSView(),
         });
 
-        this.registerView('dms-view', (leaf: WorkspaceLeaf) => {
-            this.dmsView = new DMSView(leaf, this);
-            return this.dmsView;
-        });
+        this.addRibbonIcon('folder', 'Open DMS View', () => this.activateDMSView());
 
-        this.registerMarkdownPostProcessor((el, ctx) => this.postprocessor(el, ctx));
         this.addSettingTab(new DMSSettingTab(this.app, this));
 
-        await this.externalLinkService.loadExternalLinks();
-        await this.ensureProxyNotesFolderExists();
+        this.registerView('dms-view', (leaf) => new DMSView(leaf, this));
 
-        // Activate the view on plugin load
-        this.activateView();
+        if (this.app.workspace.layoutReady) {
+            this.initializeDMSView();
+        } else {
+            this.app.workspace.onLayoutReady(() => this.initializeDMSView());
+        }
     }
 
     async loadSettings() {
@@ -44,25 +42,26 @@ export default class DMSPlugin extends Plugin {
         await this.saveData(this.settings);
     }
 
-    async activateView() {
+    private async initializeDMSView() {
+        await this.ensureProxyNotesFolderExists();
+        if (this.app.workspace.getLeavesOfType('dms-view').length === 0) {
+            await this.activateDMSView();
+        }
+    }
+
+    private async activateDMSView() {
         const { workspace } = this.app;
-        let leaf = workspace.getLeavesOfType('dms-view')[0];
-        
+        let leaf: WorkspaceLeaf | null = workspace.getLeavesOfType('dms-view')[0];
+
         if (!leaf) {
             leaf = workspace.getRightLeaf(false);
             await leaf.setViewState({ type: 'dms-view', active: true });
         }
-        
-        workspace.revealLeaf(leaf);
-        if (this.dmsView) {
-            this.dmsView.updateTable();
-        }
-    }
 
-    postprocessor(el: HTMLElement, ctx: any) {
-        // Implementation here
-        // This method can be used to process markdown content and add custom behavior
-        // For example, you could look for specific patterns and replace them with interactive elements
+        workspace.revealLeaf(leaf);
+        if (leaf.view instanceof DMSView) {
+            this.dmsView = leaf.view;
+        }
     }
 
     async ensureProxyNotesFolderExists() {
@@ -80,6 +79,11 @@ export default class DMSPlugin extends Plugin {
 
     async addNewTag(tag: string) {
         await this.externalLinkService.addNewTag(tag);
+        this.updateDMSView();
+    }
+
+    async addNewCategory(category: string) {
+        await this.externalLinkService.addNewCategory(category);
         this.updateDMSView();
     }
 }
