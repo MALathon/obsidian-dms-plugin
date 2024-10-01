@@ -1,5 +1,7 @@
 import { ItemView, WorkspaceLeaf } from 'obsidian';
 import DMSPlugin from './main';
+import { ExternalLink } from './types';
+import { AddExternalLinkModal } from './AddExternalLinkModal';
 
 export class DMSView extends ItemView {
     plugin: DMSPlugin;
@@ -74,6 +76,6 @@ export class DMSView extends ItemView {
     private linkMatchesSearch(link: ExternalLink, searchTerm: string): boolean {
         return link.title.toLowerCase().includes(searchTerm) ||
                link.category.toLowerCase().includes(searchTerm) ||
-               link.tags.some(tag => tag.toLowerCase().includes(searchTerm));
+               link.tags.some((tag: string) => tag.toLowerCase().includes(searchTerm));
     }
 }

@@ -13,7 +13,7 @@ export interface ExternalLink {
     audience: string[];
     tags: string[];
     notes: string;
-    state?: string;
+    // Add any other properties your ExternalLink might have
 }
 
 export interface ErrorWithMessage {

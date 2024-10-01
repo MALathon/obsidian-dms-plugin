@@ -64,9 +64,11 @@ export class ExternalLinkService {
         const lowercaseQuery = query.toLowerCase();
         return this.externalLinks.filter(link =>
             link.title.toLowerCase().includes(lowercaseQuery) ||
+            link.path.toLowerCase().includes(lowercaseQuery) ||
             link.category.toLowerCase().includes(lowercaseQuery) ||
+            link.audience.some((aud: string) => aud.toLowerCase().includes(lowercaseQuery)) ||
             link.tags.some(tag => tag.toLowerCase().includes(lowercaseQuery)) ||
-            link.audience.some(aud => aud.toLowerCase().includes(lowercaseQuery))
+            link.notes.toLowerCase().includes(lowercaseQuery)
         );
     }
 
