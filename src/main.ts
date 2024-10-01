@@ -15,20 +15,28 @@ export default class DMSPlugin extends Plugin {
         await this.loadSettings();
         this.externalLinkService = new ExternalLinkService(this, this.settings);
 
-        this.addRibbonIcon('folder', 'DMS', () => this.activateView());
+        // Remove the ribbon icon
+        // this.addRibbonIcon('folder', 'DMS', () => this.activateView());
+
         this.addCommand({
             id: 'open-dms-view',
             name: 'Open DMS View',
             callback: () => this.activateView(),
         });
 
-        this.registerView('dms-view', (leaf: WorkspaceLeaf) => new DMSView(leaf, this));
+        this.registerView('dms-view', (leaf: WorkspaceLeaf) => {
+            this.dmsView = new DMSView(leaf, this);
+            return this.dmsView;
+        });
 
         this.registerMarkdownPostProcessor((el, ctx) => this.postprocessor(el, ctx));
         this.addSettingTab(new DMSSettingTab(this.app, this));
 
         await this.externalLinkService.loadExternalLinks();
         await this.ensureProxyNotesFolderExists();
+
+        // Activate the view on plugin load
+        this.activateView();
     }
 
     async loadSettings() {
@@ -40,14 +48,15 @@ export default class DMSPlugin extends Plugin {
     }
 
     async activateView() {
-        this.app.workspace.detachLeavesOfType('dms-view');
-        await this.app.workspace.getRightLeaf(false).setViewState({
-            type: 'dms-view',
-            active: true,
-        });
-        this.app.workspace.revealLeaf(
-            this.app.workspace.getLeavesOfType('dms-view')[0]
-        );
+        const { workspace } = this.app;
+        let leaf = workspace.getLeavesOfType('dms-view')[0];
+        
+        if (!leaf) {
+            leaf = workspace.getRightLeaf(false);
+            await leaf.setViewState({ type: 'dms-view', active: true });
+        }
+        
+        workspace.revealLeaf(leaf);
     }
 
     postprocessor(el: HTMLElement, ctx: any) {

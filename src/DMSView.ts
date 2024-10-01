@@ -20,14 +20,60 @@ export class DMSView extends ItemView {
     }
 
     async onOpen() {
-        // Implementation here
+        const { containerEl } = this;
+        containerEl.empty();
+
+        containerEl.createEl('h2', { text: 'External Resources' });
+
+        this.searchInput = containerEl.createEl('input', {
+            type: 'text',
+            placeholder: 'Search external links...'
+        });
+        this.searchInput.addEventListener('input', () => this.updateTable());
+
+        this.tableView = containerEl.createEl('div');
+        this.updateTable();
     }
 
     async onClose() {
-        // Implementation here
+        // Clean up if necessary
     }
 
     updateTable() {
-        // Implementation here
+        const links = this.plugin.externalLinkService.getAllExternalLinks();
+        const searchTerm = this.searchInput.value.toLowerCase();
+
+        this.tableView.empty();
+        const table = this.tableView.createEl('table', { cls: 'dms-table' });
+        const thead = table.createEl('thead');
+        const headerRow = thead.createEl('tr');
+        ['Title', 'Category', 'Tags', 'Actions'].forEach(header => {
+            headerRow.createEl('th', { text: header });
+        });
+
+        const tbody = table.createEl('tbody');
+        links.forEach((link, index) => {
+            if (searchTerm && !this.linkMatchesSearch(link, searchTerm)) return;
+
+            const row = tbody.createEl('tr');
+            row.createEl('td', { text: link.title });
+            row.createEl('td', { text: link.category });
+            row.createEl('td', { text: link.tags.join(', ') });
+
+            const actionsCell = row.createEl('td');
+            const openButton = actionsCell.createEl('button', { text: 'Open' });
+            openButton.addEventListener('click', () => this.plugin.externalLinkService.openExternalFile(link.path));
+
+            const editButton = actionsCell.createEl('button', { text: 'Edit' });
+            editButton.addEventListener('click', () => {
+                new AddExternalLinkModal(this.plugin, index).open();
+            });
+        });
+    }
+
+    private linkMatchesSearch(link: ExternalLink, searchTerm: string): boolean {
+        return link.title.toLowerCase().includes(searchTerm) ||
+               link.category.toLowerCase().includes(searchTerm) ||
+               link.tags.some(tag => tag.toLowerCase().includes(searchTerm));
     }
 }
