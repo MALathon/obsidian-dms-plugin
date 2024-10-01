@@ -18,21 +18,25 @@ jobs:
     - run: npm ci
     - run: npm run build
 
-    - name: Update or Create Dev Release
+    - name: Delete existing dev release
+      uses: dev-drprasad/delete-tag-and-release@v0.2.0
+      with:
+        delete_release: true
+        tag_name: dev
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create Dev Release
       id: create_release
-      uses: softprops/action-gh-release@v1
+      uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: dev
-        name: Development Build
+        release_name: Development Build
         body: This is the latest development build of the plugin.
         draft: false
         prerelease: true
-        files: |
-          main.js
-          manifest.json
-          styles.css
 
     - name: Upload main.js
       uses: actions/upload-release-asset@v1
