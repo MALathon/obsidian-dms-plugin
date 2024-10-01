@@ -1,0 +1,9 @@
+# Exclude build artifacts
+main.js
+*.js.map
+
+# Exclude node_modules
+node_modules/
+
+# Exclude any other build or temporary files
+.DS_Store
