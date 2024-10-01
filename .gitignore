@@ -6,3 +6,6 @@ node_modules/
 
 # Exclude any other build or temporary files
 .DS_Store
+
+# Explicitly include main.js
+!main.js
