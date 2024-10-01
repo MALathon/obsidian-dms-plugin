@@ -24,11 +24,20 @@ jobs:
     - name: Create Release Files
       run: |
         mkdir release
-        cp main.js manifest.json styles.css release/
-        cp -r build release/
+        cp main.js manifest.json styles.css release/ || true
+        cp -r build release/ || true
+        echo "Contents of current directory:"
+        ls -R
 
     - name: Zip Release Files
       run: zip -r release.zip release
+
+    - name: List Release Contents
+      run: |
+        echo "Contents of release directory:"
+        ls -R release
+        echo "Contents of build directory:"
+        ls -R build || true
 
     - name: Create or Update Dev Release
       id: create_release
@@ -46,14 +55,10 @@ jobs:
           main.js
           manifest.json
           styles.css
-          build/**
+          build/**/*
 
     - name: Upload Build Folder
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: actions/upload-artifact@v3
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./build
-        asset_name: build
-        asset_content_type: application/octet-stream
+        name: build
+        path: build
