@@ -21,23 +21,23 @@ jobs:
     - run: npm ci
     - run: npm run build
 
+    - name: Debug - List files
+      run: |
+        echo "Root directory contents:"
+        ls -la
+        echo "Build directory contents:"
+        ls -la build || echo "Build directory not found"
+
     - name: Create Release Files
       run: |
         mkdir release
-        cp main.js manifest.json styles.css release/ || true
-        cp -r build release/ || true
-        echo "Contents of current directory:"
-        ls -R
+        cp main.js manifest.json styles.css release/ || echo "Some files not found"
+        cp -r build release/ || echo "Build directory not found"
+        echo "Release directory contents:"
+        ls -la release
 
     - name: Zip Release Files
       run: zip -r release.zip release
-
-    - name: List Release Contents
-      run: |
-        echo "Contents of release directory:"
-        ls -R release
-        echo "Contents of build directory:"
-        ls -R build || true
 
     - name: Create or Update Dev Release
       id: create_release
