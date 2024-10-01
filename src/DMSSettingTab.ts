@@ -14,30 +14,18 @@ export class DMSSettingTab extends PluginSettingTab {
 
         containerEl.empty();
 
-        containerEl.createEl('h2', { text: 'DMS Settings' });
+        containerEl.createEl('h2', { text: 'Document Management System Settings' });
 
         new Setting(containerEl)
-            .setName('Proxy Notes Folder')
-            .setDesc('Folder where proxy notes will be stored')
+            .setName('Proxy Notes Location')
+            .setDesc('Specify the location for proxy notes. Leave empty to use the vault root.')
             .addText(text => text
-                .setPlaceholder('Enter folder path')
-                .setValue(this.plugin.settings.proxyNotesFolder)
+                .setPlaceholder('/ or root')
+                .setValue(this.plugin.settings.proxyNotesPath)
                 .onChange(async (value) => {
-                    this.plugin.settings.proxyNotesFolder = value;
+                    this.plugin.settings.proxyNotesPath = value;
                     await this.plugin.saveSettings();
+                    this.plugin.proxyNoteManager.updateProxyNotesPath(value);
                 }));
-
-        new Setting(containerEl)
-            .setName('Default Folder')
-            .setDesc('Default folder for new external links')
-            .addText(text => text
-                .setPlaceholder('Enter folder path')
-                .setValue(this.plugin.settings.defaultFolder)
-                .onChange(async (value) => {
-                    this.plugin.settings.defaultFolder = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Add more settings as needed
     }
 }

@@ -1,11 +1,11 @@
 import { Plugin } from 'obsidian';
-import { DMSPluginSettings } from './types';
+import { DMSSettings } from './types'; // Changed DMSPluginSettings to DMSSettings
 import { DMSView } from './DMSView';
 import { ExternalLinkService } from './ExternalLinkService';
 import { DEFAULT_SETTINGS } from './constants';
 
 export default class DMSPlugin extends Plugin {
-    settings: DMSPluginSettings;
+    settings: DMSSettings; // Changed DMSPluginSettings to DMSSettings
     externalLinkService: ExternalLinkService;
     dmsView: DMSView | null = null;
 

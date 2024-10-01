@@ -1,7 +1,7 @@
-import { DMSPluginSettings } from './types';
+import { DMSSettings } from './types'; // Changed DMSPluginSettings to DMSSettings
 
-export const DEFAULT_SETTINGS: DMSPluginSettings = {
-    proxyNotesFolder: 'DMS Proxy Notes',
-    defaultFolder: 'DMS',
-    // Add any other default settings here
+export const DEFAULT_SETTINGS: DMSSettings = {
+    proxyNotesPath: ''
 };
+
+// ... rest of the file remains the same

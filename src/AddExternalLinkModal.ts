@@ -1,4 +1,4 @@
-import { Modal, Setting, TextComponent, TextAreaComponent, ButtonComponent, MomentFormatComponent, moment } from 'obsidian';
+import { Modal, Setting, TextComponent, TextAreaComponent, ButtonComponent, moment } from 'obsidian';
 import DMSPlugin from './main';
 import { ExternalLink } from './types';
 
@@ -105,9 +105,9 @@ export class AddExternalLinkModal extends Modal {
             .setName('Created Date')
             .addMomentFormat(component => component
                 .setDefaultFormat('YYYY-MM-DD')
-                .setValue(this.link.createdDate ? window.moment(this.link.createdDate).format('YYYY-MM-DD') : '')
+                .setValue(this.link.createdDate ? moment(this.link.createdDate).format('YYYY-MM-DD') : '')
                 .onChange(value => {
-                    const momentDate = window.moment(value, 'YYYY-MM-DD', true);
+                    const momentDate = moment(value, 'YYYY-MM-DD', true);
                     this.link.createdDate = momentDate.isValid() ? momentDate.valueOf() : Date.now();
                 }));
     }
@@ -167,7 +167,6 @@ export class AddExternalLinkModal extends Modal {
     }
 
     private async browseFile() {
-        // Use the showOpenDialog method from Electron's remote module
         const { remote } = require('electron');
         const result = await remote.dialog.showOpenDialog({
             properties: ['openFile']
@@ -183,12 +182,45 @@ export class AddExternalLinkModal extends Modal {
 
                 this.link.path = filePath;
                 this.link.title = fileNameWithoutExtension;
-                this.link.fileType = fileExtension || 'unknown';
+                this.link.fileType = this.detectFileType(fileName);
                 this.link.size = file.size;
                 this.link.createdDate = file.ctime;
                 this.updateModalContent();
             }
         }
+    }
+
+    private detectFileType(fileName: string): string {
+        const extension = fileName.split('.').pop()?.toLowerCase();
+        const mimeMap: { [key: string]: string } = {
+            'pdf': 'application/pdf',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'ppt': 'application/vnd.ms-powerpoint',
+            'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'txt': 'text/plain',
+            'csv': 'text/csv',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'svg': 'image/svg+xml',
+            'mp3': 'audio/mpeg',
+            'mp4': 'video/mp4',
+            'json': 'application/json',
+            'xml': 'application/xml',
+            'zip': 'application/zip',
+            'rar': 'application/x-rar-compressed',
+            '7z': 'application/x-7z-compressed',
+            'md': 'text/markdown',
+            'html': 'text/html',
+            'css': 'text/css',
+            'js': 'application/javascript'
+        };
+
+        return extension ? (mimeMap[extension] || 'application/octet-stream') : 'unknown';
     }
 
     private async saveEntry() {
@@ -201,7 +233,15 @@ export class AddExternalLinkModal extends Modal {
     }
 
     updateModalContent() {
-        this.onOpen();
+        const titleInput = this.contentEl.querySelector('#title') as HTMLInputElement;
+        const fileTypeInput = this.contentEl.querySelector('#fileType') as HTMLInputElement;
+        const sizeInput = this.contentEl.querySelector('#size') as HTMLInputElement;
+        const createdDateInput = this.contentEl.querySelector('#createdDate') as HTMLInputElement;
+
+        if (titleInput) titleInput.value = this.link.title;
+        if (fileTypeInput) fileTypeInput.value = this.link.fileType;
+        if (sizeInput) sizeInput.value = this.link.size.toString();
+        if (createdDateInput) createdDateInput.value = moment(this.link.createdDate).format('YYYY-MM-DD');
     }
 
     onClose() {

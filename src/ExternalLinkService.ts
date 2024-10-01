@@ -1,16 +1,16 @@
 import { App, Notice, TFile } from 'obsidian';
 import DMSPlugin from './main';
-import { ExternalLink, DMSPluginSettings } from './types';
+import { ExternalLink, DMSSettings } from './types';
 import { sanitizeFilePath, getErrorMessage } from './utils';
 import { parse, stringify } from 'yaml';
 
 export class ExternalLinkService {
     plugin: DMSPlugin;
     app: App;
-    settings: DMSPluginSettings;
-    externalLinks: ExternalLink[] = [];
+    settings: DMSSettings;
+    private externalLinks: ExternalLink[] = [];
 
-    constructor(plugin: DMSPlugin, settings: DMSPluginSettings) {
+    constructor(plugin: DMSPlugin, settings: DMSSettings) {
         this.plugin = plugin;
         this.app = plugin.app;
         this.settings = settings;
@@ -50,7 +50,7 @@ export class ExternalLinkService {
     }
 
     async editExternalLink(oldLink: ExternalLink, updatedLink: ExternalLink): Promise<void> {
-        const index = this.externalLinks.findIndex(link => link.path === oldLink.path);
+        const index = this.externalLinks.findIndex((link: ExternalLink) => link.path === oldLink.path);
         if (index !== -1) {
             this.externalLinks[index] = updatedLink;
             await this.saveExternalLinks();
@@ -59,21 +59,21 @@ export class ExternalLinkService {
     }
 
     async deleteExternalLink(link: ExternalLink): Promise<void> {
-        this.externalLinks = this.externalLinks.filter(l => l.path !== link.path);
+        this.externalLinks = this.externalLinks.filter((l: ExternalLink) => l.path !== link.path);
         await this.saveExternalLinks();
         await this.deleteProxyNote(link);
     }
 
     async createProxyNote(link: ExternalLink): Promise<void> {
         const fileName = sanitizeFilePath(`${link.title}.md`);
-        const filePath = `${this.settings.proxyNotesFolder}/${fileName}`;
+        const filePath = `${this.settings.proxyNotesPath}/${fileName}`;
 
         const content = `---
 title: ${link.title}
 url: ${link.path}
 fileType: ${link.fileType}
 audience: ${link.audience.join(', ')}
-categories: ${link.categories.join(', ')} // Changed from category to categories
+categories: ${link.categories.join(', ')}
 tags: ${link.tags.join(', ')}
 createdDate: ${new Date(link.createdDate).toISOString()}
 size: ${link.size}
@@ -98,8 +98,8 @@ ${link.notes}`;
     async updateProxyNote(oldLink: ExternalLink, updatedLink: ExternalLink): Promise<void> {
         const oldFileName = sanitizeFilePath(`${oldLink.title}.md`);
         const newFileName = sanitizeFilePath(`${updatedLink.title}.md`);
-        const oldFilePath = `${this.settings.proxyNotesFolder}/${oldFileName}`;
-        const newFilePath = `${this.settings.proxyNotesFolder}/${newFileName}`;
+        const oldFilePath = `${this.settings.proxyNotesPath}/${oldFileName}`;
+        const newFilePath = `${this.settings.proxyNotesPath}/${newFileName}`;
 
         try {
             if (oldFileName !== newFileName) {
@@ -114,7 +114,7 @@ ${link.notes}`;
 
     async deleteProxyNote(link: ExternalLink): Promise<void> {
         const fileName = sanitizeFilePath(`${link.title}.md`);
-        const filePath = `${this.settings.proxyNotesFolder}/${fileName}`;
+        const filePath = `${this.settings.proxyNotesPath}/${fileName}`;
 
         try {
             const file = this.app.vault.getAbstractFileByPath(filePath);
@@ -128,11 +128,11 @@ ${link.notes}`;
     }
 
     getCategories(): string[] {
-        return Array.from(new Set(this.externalLinks.flatMap(link => link.categories)));
+        return Array.from(new Set(this.externalLinks.flatMap((link: ExternalLink) => link.categories)));
     }
 
     getTags(): string[] {
-        return Array.from(new Set(this.externalLinks.flatMap(link => link.tags)));
+        return Array.from(new Set(this.externalLinks.flatMap((link: ExternalLink) => link.tags)));
     }
 
     async addNewTag(tag: string): Promise<void> {
@@ -156,7 +156,7 @@ ${link.notes}`;
     }
 
     async openExternalFile(path: string): Promise<void> {
-        const link = this.externalLinks.find(l => l.path === path);
+        const link = this.externalLinks.find((l: ExternalLink) => l.path === path);
         if (link) {
             if (link.path.startsWith('http://') || link.path.startsWith('https://')) {
                 // For web URLs
