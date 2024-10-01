@@ -25,19 +25,15 @@ jobs:
       run: |
         echo "Root directory contents:"
         ls -la
-        echo "Build directory contents:"
-        ls -la build || echo "Build directory not found"
+        echo "src directory contents:"
+        ls -la src || echo "src directory not found"
 
     - name: Create Release Files
       run: |
         mkdir release
-        cp main.js manifest.json styles.css release/ || echo "Some files not found"
-        cp -r build release/ || echo "Build directory not found"
+        cp main.js manifest.json styles.css release/
         echo "Release directory contents:"
         ls -la release
-
-    - name: Zip Release Files
-      run: zip -r release.zip release
 
     - name: Debug - Check file existence
       run: |
@@ -45,8 +41,6 @@ jobs:
         ls -l main.js || echo "main.js not found in root"
         echo "Checking for release/main.js:"
         ls -l release/main.js || echo "main.js not found in release folder"
-        echo "Checking for build/main.js:"
-        ls -l build/main.js || echo "main.js not found in build folder"
 
     - name: Create or Update Dev Release
       id: create_release
@@ -61,13 +55,8 @@ jobs:
         prerelease: true
         files: |
           release.zip
-          release/main.js
-          release/manifest.json
-          release/styles.css
-          build/main.js
+          main.js
+          manifest.json
+          styles.css
 
-    - name: Upload Build Folder
-      uses: actions/upload-artifact@v3
-      with:
-        name: build
-        path: build
+    # Remove the Upload Build Folder step as it's no longer needed
