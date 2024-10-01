@@ -52,10 +52,10 @@ jobs:
         prerelease: true
         files: |
           release.zip
-          main.js
-          manifest.json
-          styles.css
-          build/**/*
+          release/main.js
+          release/manifest.json
+          release/styles.css
+          release/build/main.js
 
     - name: Upload Build Folder
       uses: actions/upload-artifact@v3
