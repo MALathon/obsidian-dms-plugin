@@ -1,5 +1,4 @@
 # Exclude build artifacts
-main.js
 *.js.map
 
 # Exclude node_modules

@@ -26,3 +26,8 @@ This is a plugin for Obsidian (https://obsidian.md) that helps manage external l
 1. Download the latest release from the Releases section.
 2. Extract the files to your Obsidian plugins folder.
 3. Enable the plugin in Obsidian settings.
+
+## Author
+
+Mark Lifson
+GitHub: https://github.com/malathon
