@@ -1,5 +1,6 @@
 # Exclude build artifacts
 *.js.map
+build/
 
 # Exclude node_modules
 node_modules/

@@ -58,3 +58,37 @@
 .dms-table button {
     margin-right: 5px;
 }
+
+/* Add these styles to your existing styles.css */
+
+.workspace-leaf-content[data-type="dms-view"] .view-content {
+    padding: 0 10px;
+}
+
+.workspace-leaf-content[data-type="dms-view"] .dms-table {
+    font-size: 0.9em;
+}
+
+.workspace-leaf-content[data-type="dms-view"] .dms-table th,
+.workspace-leaf-content[data-type="dms-view"] .dms-table td {
+    padding: 4px;
+}
+
+.workspace-leaf-content[data-type="dms-view"] button {
+    padding: 2px 4px;
+    font-size: 0.8em;
+}
+
+.dms-external-link {
+    color: var(--text-accent);
+    text-decoration: underline;
+}
+
+.dms-external-link:hover {
+    text-decoration: none;
+}
+
+.dms-state-error {
+    color: var(--text-error);
+    font-weight: bold;
+}
