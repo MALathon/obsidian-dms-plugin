@@ -13,14 +13,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Use Node.js
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v3
       with:
-        node-version: '16'
-    - run: npm cache clean --force
-    - run: npm install
+        node-version: '20'
+    - run: npm ci
     - run: npm run build
+
+    - name: Create Release Files
+      run: |
+        mkdir release
+        cp main.js manifest.json styles.css release/
+        cp -r build release/
+
+    - name: Zip Release Files
+      run: zip -r release.zip release
 
     - name: Create or Update Dev Release
       id: create_release
@@ -34,6 +42,8 @@ jobs:
         draft: false
         prerelease: true
         files: |
-          main.js
-          manifest.json
-          styles.css
+          release.zip
+          release/main.js
+          release/manifest.json
+          release/styles.css
+          release/build/**/*
