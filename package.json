@@ -2,7 +2,13 @@
   "name": "obsidian-dms-plugin",
   "version": "0.0.1",
   "description": "A plugin for managing external links in Obsidian",
-  "main": "build/main.js",
+  "main": "main.js",
+  "files": [
+    "main.js",
+    "build",
+    "manifest.json",
+    "styles.css"
+  ],
   "scripts": {
     "dev": "rollup --config rollup.config.js -w",
     "build": "rollup --config rollup.config.js --environment BUILD:production"

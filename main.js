@@ -1,3 +1,5 @@
 'use strict';
 
-module.exports = require('./build/main.js');
+var main = require('./build/main');
+
+module.exports = main;
