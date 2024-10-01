@@ -39,6 +39,15 @@ jobs:
     - name: Zip Release Files
       run: zip -r release.zip release
 
+    - name: Debug - Check file existence
+      run: |
+        echo "Checking for main.js:"
+        ls -l main.js || echo "main.js not found in root"
+        echo "Checking for release/main.js:"
+        ls -l release/main.js || echo "main.js not found in release folder"
+        echo "Checking for build/main.js:"
+        ls -l build/main.js || echo "main.js not found in build folder"
+
     - name: Create or Update Dev Release
       id: create_release
       uses: softprops/action-gh-release@v1
@@ -52,9 +61,9 @@ jobs:
         prerelease: true
         files: |
           release.zip
-          main.js
-          manifest.json
-          styles.css
+          release/main.js
+          release/manifest.json
+          release/styles.css
           build/main.js
 
     - name: Upload Build Folder
