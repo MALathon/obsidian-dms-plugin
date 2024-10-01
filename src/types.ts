@@ -13,7 +13,11 @@ export interface ExternalLink {
     audience: string[];
     tags: string[];
     notes: string;
-    // Add any other properties your ExternalLink might have
+    summary: string;
+    fileType: string;
+    size: number;
+    createdDate: number;
+    lastModified?: number; // New property
 }
 
 export interface ErrorWithMessage {

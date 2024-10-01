@@ -43,131 +43,78 @@ export class ExternalLinkService {
         return this.externalLinks[index];
     }
 
-    addExternalLink(link: ExternalLink): void {
+    async addExternalLink(link: ExternalLink): Promise<void> {
         this.externalLinks.push(link);
-        this.saveExternalLinks();
-        this.createProxyNote(link);
+        await this.saveExternalLinks();
+        await this.createProxyNote(link);
     }
 
-    editExternalLink(index: number, updatedLink: ExternalLink): void {
-        this.externalLinks[index] = updatedLink;
-        this.saveExternalLinks();
-        this.createProxyNote(updatedLink);
-    }
-
-    deleteExternalLink(index: number): void {
-        this.externalLinks.splice(index, 1);
-        this.saveExternalLinks();
-    }
-
-    searchExternalLinks(query: string): ExternalLink[] {
-        const lowercaseQuery = query.toLowerCase();
-        return this.externalLinks.filter(link =>
-            link.title.toLowerCase().includes(lowercaseQuery) ||
-            link.path.toLowerCase().includes(lowercaseQuery) ||
-            link.category.toLowerCase().includes(lowercaseQuery) ||
-            link.audience.some((aud: string) => aud.toLowerCase().includes(lowercaseQuery)) ||
-            link.tags.some(tag => tag.toLowerCase().includes(lowercaseQuery)) ||
-            link.notes.toLowerCase().includes(lowercaseQuery)
-        );
-    }
-
-    findExternalLinkByTitle(title: string): ExternalLink | undefined {
-        return this.externalLinks.find(link => link.title === title);
-    }
-
-    async openExternalFile(path: string): Promise<void> {
-        const link = this.externalLinks.find(l => l.path === path);
-        if (link) {
-            const fileName = `${link.title.replace(/[^a-zA-Z0-9]/g, '_')}.md`;
-            const filePath = `${this.settings.defaultFolder}/${fileName}`;
-            const file = this.app.vault.getAbstractFileByPath(filePath);
-            if (file instanceof TFile) {
-                const activeLeaf = this.app.workspace.activeLeaf;
-                if (activeLeaf) {
-                    await activeLeaf.openFile(file);
-                } else {
-                    new Notice('No active leaf to open the file');
-                }
-                return;
-            }
+    async editExternalLink(oldLink: ExternalLink, updatedLink: ExternalLink): Promise<void> {
+        const index = this.externalLinks.findIndex(link => link.path === oldLink.path);
+        if (index !== -1) {
+            this.externalLinks[index] = updatedLink;
+            await this.saveExternalLinks();
+            await this.createProxyNote(updatedLink);
         }
+    }
 
-        console.log("Attempting to open:", path);
-        if (path.startsWith('http://') || path.startsWith('https://')) {
-            window.open(path, '_blank');
-        } else {
-            const sanitizedPath = sanitizeFilePath(path);
-            const encodedPath = encodeURI(`file://${sanitizedPath}`);
-            console.log("Encoded file path:", encodedPath);
-            window.open(encodedPath, '_blank');
-        }
+    async deleteExternalLink(link: ExternalLink): Promise<void> {
+        this.externalLinks = this.externalLinks.filter(l => l.path !== link.path);
+        await this.saveExternalLinks();
+        await this.deleteProxyNote(link);
     }
 
     async createProxyNote(link: ExternalLink): Promise<void> {
-        const fileName = `${link.title.replace(/[^a-zA-Z0-9]/g, '_')}.md`;
+        const fileName = sanitizeFilePath(`${link.title}.md`);
         const filePath = `${this.settings.proxyNotesFolder}/${fileName}`;
+
         const content = `---
 title: ${link.title}
-category: ${link.category}
+url: ${link.path}
+fileType: ${link.fileType}
 audience: ${link.audience.join(', ')}
+category: ${link.category}
 tags: ${link.tags.join(', ')}
-path: ${link.path}
+createdDate: ${new Date(link.createdDate).toISOString()}
+size: ${link.size}
 ---
 
-${link.notes}
+${link.summary}
 
-[Open External Link](${link.path})`;
+${link.notes}`;
+
+        try {
+            await this.app.vault.create(filePath, content);
+        } catch (error) {
+            console.error('Failed to create proxy note:', getErrorMessage(error));
+            new Notice('Failed to create proxy note. Check the console for details.');
+        }
+    }
+
+    async deleteProxyNote(link: ExternalLink): Promise<void> {
+        const fileName = sanitizeFilePath(`${link.title}.md`);
+        const filePath = `${this.settings.proxyNotesFolder}/${fileName}`;
 
         try {
             const file = this.app.vault.getAbstractFileByPath(filePath);
             if (file instanceof TFile) {
-                await this.app.vault.modify(file, content);
-            } else {
-                await this.app.vault.create(filePath, content);
+                await this.app.vault.delete(file);
             }
         } catch (error) {
-            console.error('Failed to create/update proxy note:', getErrorMessage(error));
-            new Notice('Failed to create/update proxy note. Check the console for details.');
+            console.error('Failed to delete proxy note:', getErrorMessage(error));
+            new Notice('Failed to delete proxy note. Check the console for details.');
         }
     }
 
+    getCategories(): string[] {
+        return Array.from(new Set(this.externalLinks.map(link => link.category)));
+    }
+
+    getTags(): string[] {
+        return Array.from(new Set(this.externalLinks.flatMap(link => link.tags)));
+    }
+
     async addNewTag(tag: string): Promise<void> {
-        const dummyFilePath = 'dms-tags.md';
-        let dummyFile = this.app.vault.getAbstractFileByPath(dummyFilePath);
-        if (!(dummyFile instanceof TFile)) {
-            dummyFile = await this.app.vault.create(dummyFilePath, '---\ntags: []\n---\n');
-        }
-
-        if (dummyFile instanceof TFile) {
-            try {
-                const content = await this.app.vault.read(dummyFile);
-                const [frontmatter, ...bodyParts] = content.split('---\n');
-                const body = bodyParts.join('---\n');
-                let yaml = frontmatter.trim();
-                if (!yaml) {
-                    yaml = 'tags: []';
-                }
-                const parsedYaml = parse(yaml);
-                if (!parsedYaml.tags) {
-                    parsedYaml.tags = [];
-                }
-                if (!parsedYaml.tags.includes(tag)) {
-                    parsedYaml.tags.push(tag);
-                }
-                const newFrontmatter = stringify(parsedYaml);
-                const newContent = `---\n${newFrontmatter}---\n${body}`;
-                await this.app.vault.modify(dummyFile, newContent);
-            } catch (error) {
-                console.error('Failed to add new tag:', getErrorMessage(error));
-                new Notice('Failed to add new tag. Check the console for details.');
-            }
-        } else {
-            console.error('Failed to create or access dms-tags.md file');
-            new Notice('Failed to add new tag. Check the console for details.');
-        }
-
-        // Add the new tag to all proxy notes
         for (const link of this.externalLinks) {
             if (!link.tags.includes(tag)) {
                 link.tags.push(tag);
@@ -175,5 +122,34 @@ ${link.notes}
             }
         }
         await this.saveExternalLinks();
+    }
+
+    async openExternalFile(path: string): Promise<void> {
+        const link = this.externalLinks.find(l => l.path === path);
+        if (link) {
+            if (link.path.startsWith('http://') || link.path.startsWith('https://')) {
+                // For web URLs
+                window.open(link.path, '_blank');
+            } else {
+                // For local file paths
+                const sanitizedPath = this.sanitizeFilePath(link.path);
+                const encodedPath = encodeURI(`file://${sanitizedPath}`);
+                window.open(encodedPath, '_blank');
+            }
+        } else {
+            new Notice('External link not found');
+        }
+    }
+
+    private sanitizeFilePath(path: string): string {
+        // Replace backslashes with forward slashes
+        path = path.replace(/\\/g, '/');
+        // Remove any duplicated slashes (except for the double slash after the colon)
+        path = path.replace(/([^:])\/+/g, '$1/');
+        // Encode only specific characters
+        return path.replace(/%/g, '%25')
+                   .replace(/\s/g, '%20')
+                   .replace(/\(/g, '%28')
+                   .replace(/\)/g, '%29');
     }
 }

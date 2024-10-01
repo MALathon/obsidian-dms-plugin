@@ -15,9 +15,6 @@ export default class DMSPlugin extends Plugin {
         await this.loadSettings();
         this.externalLinkService = new ExternalLinkService(this, this.settings);
 
-        // Remove the ribbon icon
-        // this.addRibbonIcon('folder', 'DMS', () => this.activateView());
-
         this.addCommand({
             id: 'open-dms-view',
             name: 'Open DMS View',
@@ -57,10 +54,15 @@ export default class DMSPlugin extends Plugin {
         }
         
         workspace.revealLeaf(leaf);
+        if (this.dmsView) {
+            this.dmsView.updateTable();
+        }
     }
 
     postprocessor(el: HTMLElement, ctx: any) {
         // Implementation here
+        // This method can be used to process markdown content and add custom behavior
+        // For example, you could look for specific patterns and replace them with interactive elements
     }
 
     async ensureProxyNotesFolderExists() {
@@ -74,5 +76,10 @@ export default class DMSPlugin extends Plugin {
         if (this.dmsView) {
             this.dmsView.updateTable();
         }
+    }
+
+    async addNewTag(tag: string) {
+        await this.externalLinkService.addNewTag(tag);
+        this.updateDMSView();
     }
 }
