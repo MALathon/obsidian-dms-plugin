@@ -1,0 +1,60 @@
+/* DMS Plugin Styles */
+
+.dms-modal {
+    padding: 20px;
+}
+
+.dms-modal h1 {
+    margin-bottom: 15px;
+    color: var(--text-normal);
+}
+
+.dms-modal input {
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.dms-modal button {
+    margin-top: 10px;
+}
+
+.dms-settings {
+    padding: 10px;
+}
+
+.dms-settings .setting-item {
+    border-top: 1px solid var(--background-modifier-border);
+    padding-top: 10px;
+}
+
+.dms-search-result {
+    padding: 5px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.dms-search-result:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.dms-modal h2 {
+    margin-bottom: 20px;
+}
+
+.dms-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.dms-table th, .dms-table td {
+    border: 1px solid var(--background-modifier-border);
+    padding: 8px;
+    text-align: left;
+}
+
+.dms-table th {
+    background-color: var(--background-secondary);
+}
+
+.dms-table button {
+    margin-right: 5px;
+}

@@ -1,65 +1,76 @@
-import { App, Plugin, PluginSettingTab, Setting, TFile, Notice, Modal, TextComponent, FuzzySuggestModal, TFolder, FileSystemAdapter } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, Notice, WorkspaceLeaf, ItemView, MarkdownView, TFile, Modal, FuzzySuggestModal } from 'obsidian';
 import { exec } from 'child_process';
-
-declare function require(module: string): any;
+import * as YAML from 'yaml';
 
 interface DMSPluginSettings {
+    categories: string[];
+    audiences: string[];
     defaultFolder: string;
-    externalLinksFile: string;
 }
 
 interface ExternalLink {
     path: string;
-    metadata: { [key: string]: string };
+    title: string;
+    category: string;
+    audience: string[];
     tags: string[];
+    notes: string;
+    dateAdded: string;
+    dateModified: string;
 }
 
 const DEFAULT_SETTINGS: DMSPluginSettings = {
-    defaultFolder: 'DMS',
-    externalLinksFile: 'external_links.json'
+    categories: ['Work', 'Personal', 'Research', 'Other'],
+    audiences: ['Self', 'Team', 'Client', 'Public'],
+    defaultFolder: 'DMS'
 }
 
 export default class DMSPlugin extends Plugin {
     settings: DMSPluginSettings;
     externalLinks: ExternalLink[] = [];
+    dmsView: DMSView | null = null;
 
     async onload() {
         await this.loadSettings();
         await this.loadExternalLinks();
 
-        // Initialize external links file if it doesn't exist
-        await this.initializeExternalLinksFile();
-
-        // Add ribbon icon
-        this.addRibbonIcon('link', 'DMS Menu', () => {
-            new DMSMenuModal(this.app, this).open();
+        this.registerView('dms-view', (leaf) => {
+            this.dmsView = new DMSView(leaf, this);
+            return this.dmsView;
         });
 
-        // Add commands
-        this.addCommand({
-            id: 'create-dms-note',
-            name: 'Create new DMS note',
-            callback: () => this.createNewNote()
+        this.addRibbonIcon('folder', 'Open DMS Panel', () => {
+            this.activateView();
         });
 
         this.addCommand({
-            id: 'add-external-link',
-            name: 'Add External Link',
-            callback: () => this.addExternalLink()
+            id: 'open-dms-panel',
+            name: 'Open DMS Panel',
+            callback: () => this.activateView()
         });
 
-        this.addCommand({
-            id: 'search-dms',
-            name: 'Search DMS (notes and external links)',
-            callback: () => this.searchDMS()
-        });
-
-        // Add settings tab
         this.addSettingTab(new DMSSettingTab(this.app, this));
+
+        // Ensure the default folder exists
+        await this.ensureDefaultFolderExists();
     }
 
-    onunload() {
-        this.saveExternalLinks().catch(console.error);
+    async ensureDefaultFolderExists() {
+        const folderPath = this.settings.defaultFolder || 'DMS';
+        if (!(await this.app.vault.adapter.exists(folderPath))) {
+            await this.app.vault.createFolder(folderPath);
+        }
+    }
+
+    async activateView() {
+        const { workspace } = this.app;
+        let leaf = workspace.getRightLeaf(false);
+        if (leaf) {
+            await leaf.setViewState({ type: 'dms-view', active: true });
+            if (this.dmsView) {
+                this.dmsView.onOpen();
+            }
+        }
     }
 
     async loadSettings() {
@@ -71,85 +82,34 @@ export default class DMSPlugin extends Plugin {
     }
 
     async loadExternalLinks() {
-        const file = this.app.vault.getAbstractFileByPath(this.settings.externalLinksFile);
-        if (file instanceof TFile) {
-            const content = await this.app.vault.read(file);
-            this.externalLinks = JSON.parse(content);
-        }
+        const data = await this.loadData();
+        this.externalLinks = data?.externalLinks || [];
     }
 
     async saveExternalLinks() {
-        const content = JSON.stringify(this.externalLinks, null, 2);
-        await this.app.vault.adapter.write(this.settings.externalLinksFile, content);
+        await this.saveData({ externalLinks: this.externalLinks });
+        this.updateDMSView();
     }
 
-    async initializeExternalLinksFile() {
-        const adapter = this.app.vault.adapter;
-        if (adapter instanceof FileSystemAdapter) {
-            const filePath = `${this.settings.defaultFolder}/${this.settings.externalLinksFile}`;
-            const exists = await adapter.exists(filePath);
-            if (!exists) {
-                await adapter.write(filePath, '[]');
-            }
+    addExternalLink(link: ExternalLink) {
+        this.externalLinks.push(link);
+        this.saveExternalLinks();
+    }
+
+    editExternalLink(index: number, link: ExternalLink) {
+        this.externalLinks[index] = link;
+        this.saveExternalLinks();
+    }
+
+    deleteExternalLink(index: number) {
+        this.externalLinks.splice(index, 1);
+        this.saveExternalLinks();
+    }
+
+    updateDMSView() {
+        if (this.dmsView) {
+            this.dmsView.updateTable();
         }
-    }
-
-    async createNewNote() {
-        const date = new Date();
-        const fileName = `${date.getFullYear()}${(date.getMonth()+1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}-${date.getHours().toString().padStart(2, '0')}${date.getMinutes().toString().padStart(2, '0')}${date.getSeconds().toString().padStart(2, '0')}-untitled.md`;
-        const filePath = `${this.settings.defaultFolder}/${fileName}`;
-        
-        await this.app.vault.create(filePath, '');
-        const file = this.app.vault.getAbstractFileByPath(filePath);
-        if (file instanceof TFile) {
-            const leaf = this.app.workspace.activeLeaf;
-            if (leaf) {
-                await leaf.openFile(file);
-            } else {
-                new Notice('Unable to open the new note.');
-            }
-        }
-    }
-
-    addExternalLink() {
-        new AddExternalLinkModal(this.app, async (path, metadata, tags) => {
-            try {
-                const newLink: ExternalLink = {
-                    path: path,
-                    metadata: JSON.parse(metadata),
-                    tags: tags.split(',').map(tag => tag.trim())
-                };
-                this.externalLinks.push(newLink);
-                await this.saveExternalLinks();
-                new Notice('External link added successfully');
-            } catch (error) {
-                console.error('Failed to add external link:', error);
-                new Notice('Failed to add external link. Please check your input.');
-            }
-        }).open();
-    }
-
-    searchDMS(query?: string) {
-        if (query) {
-            // If a query is provided, perform the search
-            return this.performSearch(query);
-        } else {
-            // If no query is provided, open the search modal
-            new SearchDMSModal(this.app, this).open();
-        }
-    }
-
-    async performSearch(query: string) {
-        const notes = this.app.vault.getMarkdownFiles().filter(file => 
-            file.path.startsWith(this.settings.defaultFolder) &&
-            (file.basename.toLowerCase().includes(query.toLowerCase()) || this.noteContainsQuery(file, query))
-        );
-        const externalLinks = this.externalLinks.filter(link => 
-            link.path.toLowerCase().includes(query.toLowerCase()) ||
-            Object.values(link.metadata).some(value => value.toLowerCase().includes(query.toLowerCase())) ||
-            link.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase()))
-        );
-        return [...notes, ...externalLinks];
     }
 
     openExternalFile(path: string) {
@@ -162,220 +122,239 @@ export default class DMSPlugin extends Plugin {
     }
 
     getAllTags(): string[] {
-        const tags = new Set<string>();
-        this.externalLinks.forEach(link => link.tags.forEach(tag => tags.add(tag)));
-        return Array.from(tags);
+        const allTags = new Set<string>();
+        // Get tags from external links
+        this.externalLinks.forEach(link => link.tags.forEach(tag => allTags.add(tag)));
+        // Get tags from Obsidian vault
+        this.app.vault.getFiles().forEach(file => {
+            const fileTags = this.app.metadataCache.getFileCache(file)?.tags || [];
+            fileTags.forEach(tagCache => allTags.add(tagCache.tag.slice(1)));
+        });
+        return Array.from(allTags);
     }
 
-    // Add edit functionality for external links
-    editExternalLink(index: number) {
-        const link = this.externalLinks[index];
-        new AddExternalLinkModal(this.app, async (path, metadata, tags) => {
+    async addNewTag(tag: string) {
+        const dummyFilePath = 'dms-tags.md';
+        let dummyFile = this.app.vault.getAbstractFileByPath(dummyFilePath);
+        
+        if (!(dummyFile instanceof TFile)) {
+            dummyFile = await this.app.vault.create(dummyFilePath, '---\ntags: []\n---\n');
+        }
+
+        if (dummyFile instanceof TFile) {
             try {
-                this.externalLinks[index] = {
-                    path: path,
-                    metadata: JSON.parse(metadata),
-                    tags: tags.split(',').map(tag => tag.trim())
-                };
-                await this.saveExternalLinks();
-                new Notice('External link updated successfully');
+                const content = await this.app.vault.read(dummyFile);
+                const [frontmatter, ...bodyParts] = content.split('---\n');
+                const body = bodyParts.join('---\n');
+
+                let yaml = frontmatter.trim();
+                if (!yaml) {
+                    yaml = 'tags: []';
+                }
+
+                const parsedYaml = YAML.parse(yaml);
+                if (!parsedYaml.tags) {
+                    parsedYaml.tags = [];
+                }
+
+                if (!parsedYaml.tags.includes(tag)) {
+                    parsedYaml.tags.push(tag);
+                }
+
+                const newFrontmatter = YAML.stringify(parsedYaml);
+                const newContent = `---\n${newFrontmatter}---\n${body}`;
+
+                await this.app.vault.modify(dummyFile, newContent);
             } catch (error) {
-                console.error('Failed to update external link:', error);
-                new Notice('Failed to update external link. Please check your input.');
+                console.error('Failed to add new tag:', error);
+                new Notice('Failed to add new tag. Check the console for details.');
             }
-        }, link).open();
+        } else {
+            console.error('Failed to create or access dms-tags.md file');
+            new Notice('Failed to add new tag. Check the console for details.');
+        }
     }
 
-    // Add delete functionality for external links
-    async deleteExternalLink(index: number) {
-        this.externalLinks.splice(index, 1);
-        await this.saveExternalLinks();
-        new Notice('External link deleted successfully');
-    }
-
-    async noteContainsQuery(file: TFile, query: string): Promise<boolean> {
-        const content = await this.app.vault.cachedRead(file);
-        return content.toLowerCase().includes(query.toLowerCase());
+    searchExternalLinks(query: string): ExternalLink[] {
+        return this.externalLinks.filter(link => 
+            link.title.toLowerCase().includes(query.toLowerCase()) ||
+            link.path.toLowerCase().includes(query.toLowerCase()) ||
+            link.category.toLowerCase().includes(query.toLowerCase()) ||
+            link.audience.some(a => a.toLowerCase().includes(query.toLowerCase())) ||
+            link.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase())) ||
+            link.notes.toLowerCase().includes(query.toLowerCase())
+        );
     }
 }
 
-class DMSMenuModal extends FuzzySuggestModal<string> {
+class DMSView extends ItemView {
     plugin: DMSPlugin;
+    tableView: HTMLElement;
+    searchInput: HTMLInputElement;
 
-    constructor(app: App, plugin: DMSPlugin) {
-        super(app);
+    constructor(leaf: WorkspaceLeaf, plugin: DMSPlugin) {
+        super(leaf);
         this.plugin = plugin;
     }
 
-    getItems(): string[] {
-        return ['Create new note', 'Add external link', 'Search DMS', 'List all notes'];
+    getViewType() {
+        return "dms-view";
     }
 
-    getItemText(item: string): string {
-        return item;
+    getDisplayText() {
+        return "DMS";
     }
 
-    onChooseItem(item: string, evt: MouseEvent | KeyboardEvent) {
-        if (item === 'Create new note') {
-            this.plugin.createNewNote();
-        } else if (item === 'Add external link') {
-            this.plugin.addExternalLink();
-        } else if (item === 'Search DMS') {
-            this.plugin.searchDMS();
-        } else if (item === 'List all notes') {
-            new ListNotesModal(this.app, this.plugin).open();
-        }
+    async onOpen() {
+        const container = this.containerEl.children[1];
+        container.empty();
+
+        container.createEl("h4", { text: "DMS Panel" });
+
+        this.searchInput = container.createEl("input", { type: "text", placeholder: "Search external links..." });
+        this.searchInput.addEventListener("input", () => this.updateTable());
+
+        const addButton = container.createEl("button", { text: "Add External Link" });
+        addButton.addEventListener("click", () => new AddExternalLinkModal(this.plugin).open());
+
+        this.tableView = container.createEl("div", { cls: "dms-table-view" });
+        this.updateTable();
+    }
+
+    updateTable() {
+        this.tableView.empty();
+        const table = this.tableView.createEl("table", { cls: "dms-table" });
+        const thead = table.createEl("thead");
+        const headerRow = thead.createEl("tr");
+        ["Title", "Category", "Audience", "Tags", "Actions"].forEach(header => {
+            headerRow.createEl("th", { text: header });
+        });
+
+        const tbody = table.createEl("tbody");
+
+        const links = this.searchInput.value 
+            ? this.plugin.searchExternalLinks(this.searchInput.value)
+            : this.plugin.externalLinks;
+
+        links.forEach((link, index) => {
+            const row = tbody.createEl("tr");
+            row.createEl("td", { text: link.title });
+            row.createEl("td", { text: link.category });
+            row.createEl("td", { text: link.audience.join(", ") });
+            row.createEl("td", { text: link.tags.join(", ") });
+            const actionsCell = row.createEl("td");
+            const openButton = actionsCell.createEl("button", { text: "Open" });
+            openButton.addEventListener("click", () => this.plugin.openExternalFile(link.path));
+            const editButton = actionsCell.createEl("button", { text: "Edit" });
+            editButton.addEventListener("click", () => new AddExternalLinkModal(this.plugin, index).open());
+            const deleteButton = actionsCell.createEl("button", { text: "Delete" });
+            deleteButton.addEventListener("click", () => {
+                this.plugin.deleteExternalLink(index);
+                this.updateTable();
+            });
+        });
     }
 }
 
 class AddExternalLinkModal extends Modal {
-    path: string;
-    metadata: string;
-    tags: string;
-    onSubmit: (path: string, metadata: string, tags: string) => void;
+    plugin: DMSPlugin;
+    linkIndex: number | null;
+    link: ExternalLink;
 
-    constructor(app: App, onSubmit: (path: string, metadata: string, tags: string) => void, existingLink?: ExternalLink) {
-        super(app);
-        this.onSubmit = onSubmit;
-        if (existingLink) {
-            this.path = existingLink.path;
-            this.metadata = JSON.stringify(existingLink.metadata);
-            this.tags = existingLink.tags.join(', ');
+    constructor(plugin: DMSPlugin, linkIndex: number | null = null) {
+        super(plugin.app);
+        this.plugin = plugin;
+        this.linkIndex = linkIndex;
+        if (linkIndex !== null) {
+            this.link = {...this.plugin.externalLinks[linkIndex]};
+        } else {
+            this.link = {
+                path: '',
+                title: '',
+                category: '',
+                audience: [],
+                tags: [],
+                notes: '',
+                dateAdded: new Date().toISOString(),
+                dateModified: new Date().toISOString()
+            };
         }
     }
 
     onOpen() {
-        const { contentEl } = this;
+        const {contentEl} = this;
+        contentEl.empty();
+        contentEl.addClass('dms-modal');
 
-        contentEl.createEl("h1", { text: "Add External Link" });
+        contentEl.createEl('h2', {text: this.linkIndex !== null ? 'Edit External Link' : 'Add External Link'});
 
-        new TextComponent(contentEl)
-            .setPlaceholder("Enter the path to the external file")
-            .onChange((value) => {
-                this.path = value;
-            });
+        new Setting(contentEl)
+            .setName('File Path')
+            .addText(text => text
+                .setValue(this.link.path)
+                .onChange(async (value) => {
+                    this.link.path = value;
+                }));
 
-        new TextComponent(contentEl)
-            .setPlaceholder("Enter metadata (as JSON)")
-            .onChange((value) => {
-                this.metadata = value;
-            });
+        new Setting(contentEl)
+            .setName('Title')
+            .addText(text => text
+                .setValue(this.link.title)
+                .onChange(async (value) => {
+                    this.link.title = value;
+                }));
 
-        new TextComponent(contentEl)
-            .setPlaceholder("Enter tags (comma-separated)")
-            .onChange((value) => {
-                this.tags = value;
-            });
+        new Setting(contentEl)
+            .setName('Category')
+            .addDropdown(dropdown => dropdown
+                .addOptions(Object.fromEntries(this.plugin.settings.categories.map(c => [c, c])))
+                .setValue(this.link.category)
+                .onChange(async (value) => {
+                    this.link.category = value;
+                }));
 
-        contentEl.createEl("button", { text: "Add" }).addEventListener("click", () => {
-            this.close();
-            this.onSubmit(this.path, this.metadata, this.tags);
-        });
+        new Setting(contentEl)
+            .setName('Audience')
+            .addDropdown(dropdown => dropdown
+                .addOptions(Object.fromEntries(this.plugin.settings.audiences.map(a => [a, a])))
+                .setValue(this.link.audience[0] || '')
+                .onChange(async (value) => {
+                    this.link.audience = [value];
+                }));
 
-        // Pre-fill fields if editing an existing link
-        if (this.path) {
-            (contentEl.querySelector('input[placeholder="Enter the path to the external file"]') as HTMLInputElement).value = this.path;
-        }
-        if (this.metadata) {
-            (contentEl.querySelector('input[placeholder="Enter metadata (as JSON)"]') as HTMLInputElement).value = this.metadata;
-        }
-        if (this.tags) {
-            (contentEl.querySelector('input[placeholder="Enter tags (comma-separated)"]') as HTMLInputElement).value = this.tags;
-        }
+        new Setting(contentEl)
+            .setName('Tags')
+            .addText(text => text
+                .setValue(this.link.tags.join(', '))
+                .onChange(async (value) => {
+                    this.link.tags = value.split(',').map(tag => tag.trim());
+                }));
+
+        new Setting(contentEl)
+            .setName('Notes')
+            .addTextArea(textarea => textarea
+                .setValue(this.link.notes)
+                .onChange(async (value) => {
+                    this.link.notes = value;
+                }));
+
+        new Setting(contentEl)
+            .addButton(btn => btn
+                .setButtonText(this.linkIndex !== null ? 'Save Changes' : 'Add Link')
+                .setCta()
+                .onClick(() => {
+                    if (this.linkIndex !== null) {
+                        this.plugin.editExternalLink(this.linkIndex, this.link);
+                    } else {
+                        this.plugin.addExternalLink(this.link);
+                    }
+                    this.close();
+                }));
     }
 
     onClose() {
-        const { contentEl } = this;
+        const {contentEl} = this;
         contentEl.empty();
-    }
-}
-
-class SearchDMSModal extends FuzzySuggestModal<TFile | ExternalLink> {
-    plugin: DMSPlugin;
-    searchResults: (TFile | ExternalLink)[] = [];
-
-    constructor(app: App, plugin: DMSPlugin) {
-        super(app);
-        this.plugin = plugin;
-        this.setPlaceholder("Type to start searching...");
-        
-        // Perform initial search
-        this.updateSearchResults();
-
-        // Update search results when input changes
-        this.inputEl.addEventListener("input", () => {
-            this.updateSearchResults();
-        });
-    }
-
-    async updateSearchResults() {
-        const query = this.inputEl.value;
-        this.searchResults = await this.plugin.performSearch(query);
-        // Manually trigger a re-render
-        this.resultContainerEl.empty();
-        this.searchResults.forEach((item) => {
-            this.addItem(item);
-        });
-    }
-
-    getItems(): (TFile | ExternalLink)[] {
-        return this.searchResults;
-    }
-
-    getItemText(item: TFile | ExternalLink): string {
-        if (item instanceof TFile) {
-            return `Note: ${item.basename}`;
-        } else {
-            return `External: ${item.path}`;
-        }
-    }
-
-    onChooseItem(item: TFile | ExternalLink, evt: MouseEvent | KeyboardEvent) {
-        if (item instanceof TFile) {
-            const leaf = this.app.workspace.activeLeaf;
-            if (leaf) {
-                leaf.openFile(item);
-            } else {
-                new Notice('Unable to open the file.');
-            }
-        } else {
-            this.plugin.openExternalFile(item.path);
-        }
-    }
-
-    addItem(item: TFile | ExternalLink) {
-        const itemDiv = this.resultContainerEl.createDiv("suggestion-item");
-        itemDiv.setText(this.getItemText(item));
-        itemDiv.addEventListener("click", (event: MouseEvent) => {
-            this.onChooseItem(item, event);
-            this.close();
-        });
-    }
-}
-
-class ListNotesModal extends FuzzySuggestModal<TFile> {
-    plugin: DMSPlugin;
-
-    constructor(app: App, plugin: DMSPlugin) {
-        super(app);
-        this.plugin = plugin;
-    }
-
-    getItems(): TFile[] {
-        return this.app.vault.getFiles().filter(file => file.path.startsWith(this.plugin.settings.defaultFolder));
-    }
-
-    getItemText(item: TFile): string {
-        return item.basename;
-    }
-
-    onChooseItem(item: TFile, evt: MouseEvent | KeyboardEvent) {
-        const leaf = this.app.workspace.activeLeaf;
-        if (leaf) {
-            leaf.openFile(item);
-        } else {
-            new Notice('Unable to open the file.');
-        }
     }
 }
 
@@ -393,24 +372,24 @@ class DMSSettingTab extends PluginSettingTab {
         containerEl.createEl('h2', {text: 'DMS Plugin Settings'});
 
         new Setting(containerEl)
-            .setName('Default folder')
-            .setDesc('The folder where new DMS notes will be created')
+            .setName('Categories')
+            .setDesc('Comma-separated list of categories')
             .addText(text => text
-                .setPlaceholder('Enter folder name')
-                .setValue(this.plugin.settings.defaultFolder)
+                .setPlaceholder('Work, Personal, Research, Other')
+                .setValue(this.plugin.settings.categories.join(', '))
                 .onChange(async (value) => {
-                    this.plugin.settings.defaultFolder = value;
+                    this.plugin.settings.categories = value.split(',').map(c => c.trim());
                     await this.plugin.saveSettings();
                 }));
 
         new Setting(containerEl)
-            .setName('External links file')
-            .setDesc('The file where external links will be stored')
+            .setName('Audiences')
+            .setDesc('Comma-separated list of audiences')
             .addText(text => text
-                .setPlaceholder('Enter file name')
-                .setValue(this.plugin.settings.externalLinksFile)
+                .setPlaceholder('Self, Team, Client, Public')
+                .setValue(this.plugin.settings.audiences.join(', '))
                 .onChange(async (value) => {
-                    this.plugin.settings.externalLinksFile = value;
+                    this.plugin.settings.audiences = value.split(',').map(a => a.trim());
                     await this.plugin.saveSettings();
                 }));
     }
