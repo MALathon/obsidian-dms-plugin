@@ -43,7 +43,13 @@ jobs:
         prerelease: true
         files: |
           release.zip
-          release/main.js
-          release/manifest.json
-          release/styles.css
-          release/build/**/*
+          main.js
+          manifest.json
+          styles.css
+          build/**/*
+
+    - name: Upload Build Folder
+      uses: actions/upload-artifact@v3
+      with:
+        name: build
+        path: build
