@@ -211,6 +211,44 @@ export class DMSView extends ItemView {
     }
 
     updateTable() {
-        this.updateView();
+        // Clear any existing filters
+        this.clearFilters();
+        
+        const links = this.plugin.externalLinkService.getAllExternalLinks();
+        // Sort links by most recently added/modified
+        links.sort((a, b) => b.createdDate - a.createdDate);
+        
+        // Rebuild the table with the updated links
+        this.buildTable(links);
     }
+
+    clearFilters() {
+        // Clear any filter inputs or reset filter state
+        // This will depend on how you've implemented filtering
+    }
+
+    buildTable(links: ExternalLink[]) {
+        const tableBody = this.tableElement.querySelector('tbody');
+        if (!tableBody) return;
+
+        tableBody.empty();
+
+        links.forEach(link => {
+            const row = tableBody.createEl('tr');
+            row.createEl('td').createEl('a', {
+                text: link.title,
+                href: link.path,
+                cls: 'dms-external-link',
+                attr: {
+                    'data-path': link.path
+                }
+            }).addEventListener('click', (e: MouseEvent) => {
+                e.preventDefault();
+                this.plugin.externalLinkService.openExternalFile(link.path);
+            });
+            // ... other columns ...
+        });
+    }
+
+    // ... rest of the class ...
 }

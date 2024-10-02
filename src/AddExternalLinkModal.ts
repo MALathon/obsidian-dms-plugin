@@ -1,7 +1,8 @@
 import { Modal, Setting, TextComponent, TextAreaComponent, ButtonComponent, moment } from 'obsidian';
 import DMSPlugin from './main';
 import { ExternalLink } from './types';
-import { TFile, TFolder } from 'obsidian';
+import { TFile } from 'obsidian';
+import { App } from 'obsidian';
 
 export class AddExternalLinkModal extends Modal {
     plugin: DMSPlugin;
@@ -73,55 +74,52 @@ export class AddExternalLinkModal extends Modal {
     }
 
     private async handleDroppedFile(file: File) {
-        // Instead of using getFullPath, we'll use the file name directly
-        await this.populateFileData(file.name);
+        await this.populateFileData(file);
     }
 
     private async browseFile() {
-        // We'll use a different approach to open files
-        const file = await this.openFilePickerDialog();
-        if (file) {
-            await this.populateFileData(file.path);
-        }
-    }
-
-    private async openFilePickerDialog(): Promise<TFile | null> {
-        return new Promise((resolve) => {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.onchange = async () => {
-                if (input.files && input.files.length > 0) {
-                    const file = input.files[0];
-                    const existingFile = this.plugin.app.vault.getAbstractFileByPath(file.name);
-                    if (existingFile instanceof TFile) {
-                        resolve(existingFile);
-                    } else {
-                        // If the file doesn't exist in the vault, create it
-                        const content = await file.text(); // Read file as text
-                        const newFile = await this.plugin.app.vault.create(file.name, content);
-                        resolve(newFile);
-                    }
-                } else {
-                    resolve(null);
-                }
-            };
-            input.click();
-        });
-    }
-
-    private async populateFileData(filePath: string) {
-        const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
-        if (file instanceof TFile) {
-            const stat = await this.plugin.app.vault.adapter.stat(filePath);
-            this.link.path = filePath;
-            this.link.title = file.basename;
-            this.link.fileType = file.extension;
-            if (stat) {
-                this.link.size = stat.size;
-                this.link.createdDate = stat.ctime;
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.onchange = async () => {
+            if (input.files && input.files.length > 0) {
+                await this.populateFileData(input.files[0]);
             }
-            this.updateModalContent();
-        }
+        };
+        input.click();
+    }
+
+    private async populateFileData(file: File) {
+        const tempLink: ExternalLink = {
+            path: file.name,
+            title: file.name.split('.').slice(0, -1).join('.'),
+            fileType: file.name.split('.').pop() || '',
+            size: file.size,
+            createdDate: file.lastModified,
+            categories: [],
+            audience: [],
+            tags: [],
+            notes: '',
+            summary: ''
+        };
+
+        // Show prefilled data and ask for confirmation
+        new ConfirmationModal(this.app, "Confirm File Details", this.generateConfirmationContent(tempLink), (confirmed) => {
+            if (confirmed) {
+                Object.assign(this.link, tempLink);
+                this.updateModalContent();
+            }
+        }).open();
+    }
+
+    private generateConfirmationContent(link: ExternalLink): DocumentFragment {
+        const content = document.createDocumentFragment();
+        content.createEl('p', {text: 'Please confirm the details of the file:'});
+        content.createEl('p', {text: `Title: ${link.title}`});
+        content.createEl('p', {text: `Path: ${link.path}`});
+        content.createEl('p', {text: `File Type: ${link.fileType}`});
+        content.createEl('p', {text: `Size: ${link.size} bytes`});
+        content.createEl('p', {text: `Created Date: ${new Date(link.createdDate).toLocaleString()}`});
+        return content;
     }
 
     private createPathSetting(contentEl: HTMLElement) {
@@ -242,11 +240,12 @@ export class AddExternalLinkModal extends Modal {
 
     private async saveEntry() {
         if (this.isEditing) {
-            await this.plugin.externalLinkService.editExternalLink(this.link, this.link);
+            await this.plugin.externalLinkService.editExternalLink(this.link);
         } else {
             await this.plugin.externalLinkService.addExternalLink(this.link);
         }
         this.close();
+        this.plugin.updateDMSView();
     }
 
     private updateModalContent() {
@@ -264,5 +263,40 @@ export class AddExternalLinkModal extends Modal {
     onClose() {
         const { contentEl } = this;
         contentEl.empty();
+    }
+}
+
+class ConfirmationModal extends Modal {
+    private title: string;
+    private content: DocumentFragment;
+    private onConfirm: (confirmed: boolean) => void;
+
+    constructor(app: App, title: string, content: DocumentFragment, onConfirm: (confirmed: boolean) => void) {
+        super(app);
+        this.title = title;
+        this.content = content;
+        this.onConfirm = onConfirm;
+    }
+
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.createEl('h2', { text: this.title });
+        contentEl.appendChild(this.content);
+        
+        new Setting(contentEl)
+            .addButton(btn => btn
+                .setButtonText('Confirm')
+                .setCta()
+                .onClick(() => {
+                    this.close();
+                    this.onConfirm(true);
+                }))
+            .addButton(btn => btn
+                .setButtonText('Cancel')
+                .onClick(() => {
+                    this.close();
+                    this.onConfirm(false);
+                }));
     }
 }

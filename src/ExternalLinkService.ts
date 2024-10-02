@@ -44,19 +44,8 @@ export class ExternalLinkService {
     }
 
     async addExternalLink(link: ExternalLink): Promise<void> {
-        // Ensure the link has all required fields
         if (!link.path || !link.title) {
             throw new Error('External link must have a path and title');
-        }
-
-        const file = this.app.vault.getAbstractFileByPath(link.path);
-        if (file instanceof TFile) {
-            const stat = await this.app.vault.adapter.stat(link.path);
-            if (stat) {
-                link.fileType = link.fileType || file.extension;
-                link.size = link.size || stat.size;
-                link.createdDate = link.createdDate || stat.ctime;
-            }
         }
 
         this.externalLinks.push(link);
@@ -64,12 +53,12 @@ export class ExternalLinkService {
         await this.createProxyNote(link);
     }
 
-    async editExternalLink(oldLink: ExternalLink, updatedLink: ExternalLink): Promise<void> {
-        const index = this.externalLinks.findIndex((link: ExternalLink) => link.path === oldLink.path);
+    async editExternalLink(updatedLink: ExternalLink): Promise<void> {
+        const index = this.externalLinks.findIndex((link: ExternalLink) => link.path === updatedLink.path);
         if (index !== -1) {
             this.externalLinks[index] = updatedLink;
             await this.saveExternalLinks();
-            await this.updateProxyNote(oldLink, updatedLink);
+            await this.updateProxyNote(updatedLink);
         }
     }
 
@@ -85,7 +74,7 @@ export class ExternalLinkService {
 
         const content = `---
 title: ${link.title}
-url: ${link.path}
+external_path: ${link.path}
 fileType: ${link.fileType}
 audience: ${link.audience.join(', ')}
 categories: ${link.categories.join(', ')}
@@ -96,31 +85,29 @@ size: ${link.size}
 
 ${link.summary}
 
-${link.notes}`;
+${link.notes}
+
+[Open External File](file://${encodeURI(link.path)})`;
 
         try {
             await this.app.vault.create(filePath, content);
         } catch (error) {
-            if (error.message.includes('File already exists')) {
-                await this.app.vault.modify(this.app.vault.getAbstractFileByPath(filePath) as TFile, content);
-            } else {
-                console.error('Failed to create proxy note:', getErrorMessage(error));
-                new Notice('Failed to create proxy note. Check the console for details.');
-            }
+            console.error('Failed to create proxy note:', getErrorMessage(error));
+            new Notice('Failed to create proxy note. Check the console for details.');
         }
     }
 
-    async updateProxyNote(oldLink: ExternalLink, updatedLink: ExternalLink): Promise<void> {
-        const oldFileName = sanitizeFilePath(`${oldLink.title}.md`);
-        const newFileName = sanitizeFilePath(`${updatedLink.title}.md`);
-        const oldFilePath = `${this.settings.proxyNotesPath}/${oldFileName}`;
-        const newFilePath = `${this.settings.proxyNotesPath}/${newFileName}`;
+    async updateProxyNote(link: ExternalLink): Promise<void> {
+        const fileName = sanitizeFilePath(`${link.title}.md`);
+        const filePath = `${this.settings.proxyNotesPath}/${fileName}`;
 
         try {
-            if (oldFileName !== newFileName) {
-                await this.app.vault.rename(this.app.vault.getAbstractFileByPath(oldFilePath) as TFile, newFilePath);
+            const file = this.app.vault.getAbstractFileByPath(filePath);
+            if (file instanceof TFile) {
+                await this.createProxyNote(link); // This will overwrite the existing file
+            } else {
+                throw new Error('Proxy note not found');
             }
-            await this.createProxyNote(updatedLink);
         } catch (error) {
             console.error('Failed to update proxy note:', getErrorMessage(error));
             new Notice('Failed to update proxy note. Check the console for details.');
@@ -154,7 +141,7 @@ ${link.notes}`;
         for (const link of this.externalLinks) {
             if (!link.tags.includes(tag)) {
                 link.tags.push(tag);
-                await this.updateProxyNote(link, link);
+                await this.updateProxyNote(link);
             }
         }
         await this.saveExternalLinks();
@@ -164,7 +151,7 @@ ${link.notes}`;
         for (const link of this.externalLinks) {
             if (!link.categories.includes(category)) {
                 link.categories.push(category);
-                await this.updateProxyNote(link, link);
+                await this.updateProxyNote(link);
             }
         }
         await this.saveExternalLinks();

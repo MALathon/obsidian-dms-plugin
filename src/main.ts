@@ -67,6 +67,28 @@ export default class DMSPlugin extends Plugin {
                 }
             })
         );
+
+        this.registerEvent(
+            this.app.workspace.on('file-open', (file) => {
+                if (file && this.isProxyNote(file)) {
+                    this.openExternalLinkFromProxyNote(file);
+                }
+            })
+        );
+
+        this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
+            const target = evt.target as HTMLElement;
+            if (target.tagName === 'A' && target.hasClass('internal-link')) {
+                const href = target.getAttribute('href');
+                if (href) {
+                    const file = this.app.metadataCache.getFirstLinkpathDest(href, '');
+                    if (file && this.isProxyNote(file)) {
+                        evt.preventDefault();
+                        this.openExternalLinkFromProxyNote(file);
+                    }
+                }
+            }
+        });
     }
 
     async loadSettings() {
@@ -116,6 +138,18 @@ export default class DMSPlugin extends Plugin {
     updateDMSView() {
         if (this.dmsView) {
             this.dmsView.updateTable();
+        }
+    }
+
+    isProxyNote(file: TFile): boolean {
+        return file.path.startsWith(this.settings.proxyNotesPath);
+    }
+
+    async openExternalLinkFromProxyNote(file: TFile) {
+        const content = await this.app.vault.read(file);
+        const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+        if (frontmatter && frontmatter.external_path) {
+            this.externalLinkService.openExternalFile(frontmatter.external_path);
         }
     }
 }
