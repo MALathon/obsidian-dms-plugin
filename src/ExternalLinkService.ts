@@ -44,6 +44,21 @@ export class ExternalLinkService {
     }
 
     async addExternalLink(link: ExternalLink): Promise<void> {
+        // Ensure the link has all required fields
+        if (!link.path || !link.title) {
+            throw new Error('External link must have a path and title');
+        }
+
+        const file = this.app.vault.getAbstractFileByPath(link.path);
+        if (file instanceof TFile) {
+            const stat = await this.app.vault.adapter.stat(link.path);
+            if (stat) {
+                link.fileType = link.fileType || file.extension;
+                link.size = link.size || stat.size;
+                link.createdDate = link.createdDate || stat.ctime;
+            }
+        }
+
         this.externalLinks.push(link);
         await this.saveExternalLinks();
         await this.createProxyNote(link);

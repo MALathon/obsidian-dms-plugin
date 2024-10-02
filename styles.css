@@ -92,3 +92,18 @@
     color: var(--text-error);
     font-weight: bold;
 }
+
+/* Dropzone styles */
+
+.dms-dropzone {
+    border: 2px dashed var(--background-modifier-border);
+    border-radius: 4px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    margin-bottom: 20px;
+}
+
+.dms-dropzone-active {
+    background-color: var(--background-modifier-hover);
+}

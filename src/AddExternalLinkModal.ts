@@ -1,11 +1,13 @@
 import { Modal, Setting, TextComponent, TextAreaComponent, ButtonComponent, moment } from 'obsidian';
 import DMSPlugin from './main';
 import { ExternalLink } from './types';
+import { TFile, TFolder } from 'obsidian';
 
 export class AddExternalLinkModal extends Modal {
     plugin: DMSPlugin;
     link: ExternalLink;
     isEditing: boolean;
+    private dropZone: HTMLElement;
 
     constructor(plugin: DMSPlugin, existingLink?: ExternalLink) {
         super(plugin.app);
@@ -32,6 +34,7 @@ export class AddExternalLinkModal extends Modal {
 
         contentEl.createEl('h2', { text: this.isEditing ? 'Edit Entry' : 'Add New Entry' });
 
+        this.createDropZone(contentEl);
         this.createPathSetting(contentEl);
         this.createTitleSetting(contentEl);
         this.createFileTypeSetting(contentEl);
@@ -48,6 +51,77 @@ export class AddExternalLinkModal extends Modal {
                 .setButtonText(this.isEditing ? 'Save' : 'Add')
                 .setCta()
                 .onClick(() => this.saveEntry()));
+    }
+
+    private createDropZone(contentEl: HTMLElement) {
+        this.dropZone = contentEl.createEl('div', { cls: 'dms-dropzone', text: 'Drop files here or click to select' });
+        this.dropZone.addEventListener('click', () => this.browseFile());
+        this.dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            this.dropZone.addClass('dms-dropzone-active');
+        });
+        this.dropZone.addEventListener('dragleave', () => {
+            this.dropZone.removeClass('dms-dropzone-active');
+        });
+        this.dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            this.dropZone.removeClass('dms-dropzone-active');
+            if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+                this.handleDroppedFile(e.dataTransfer.files[0]);
+            }
+        });
+    }
+
+    private async handleDroppedFile(file: File) {
+        // Instead of using getFullPath, we'll use the file name directly
+        await this.populateFileData(file.name);
+    }
+
+    private async browseFile() {
+        // We'll use a different approach to open files
+        const file = await this.openFilePickerDialog();
+        if (file) {
+            await this.populateFileData(file.path);
+        }
+    }
+
+    private async openFilePickerDialog(): Promise<TFile | null> {
+        return new Promise((resolve) => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.onchange = async () => {
+                if (input.files && input.files.length > 0) {
+                    const file = input.files[0];
+                    const existingFile = this.plugin.app.vault.getAbstractFileByPath(file.name);
+                    if (existingFile instanceof TFile) {
+                        resolve(existingFile);
+                    } else {
+                        // If the file doesn't exist in the vault, create it
+                        const content = await file.text(); // Read file as text
+                        const newFile = await this.plugin.app.vault.create(file.name, content);
+                        resolve(newFile);
+                    }
+                } else {
+                    resolve(null);
+                }
+            };
+            input.click();
+        });
+    }
+
+    private async populateFileData(filePath: string) {
+        const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
+        if (file instanceof TFile) {
+            const stat = await this.plugin.app.vault.adapter.stat(filePath);
+            this.link.path = filePath;
+            this.link.title = file.basename;
+            this.link.fileType = file.extension;
+            if (stat) {
+                this.link.size = stat.size;
+                this.link.createdDate = stat.ctime;
+            }
+            this.updateModalContent();
+        }
     }
 
     private createPathSetting(contentEl: HTMLElement) {
@@ -166,63 +240,6 @@ export class AddExternalLinkModal extends Modal {
         updateSelectedItems();
     }
 
-    private async browseFile() {
-        const { remote } = require('electron');
-        const result = await remote.dialog.showOpenDialog({
-            properties: ['openFile']
-        });
-
-        if (!result.canceled && result.filePaths.length > 0) {
-            const filePath = result.filePaths[0];
-            const file = await this.plugin.app.vault.adapter.stat(filePath);
-            if (file) {
-                const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || '';
-                const fileNameWithoutExtension = fileName.split('.').slice(0, -1).join('.') || fileName;
-                const fileExtension = fileName.split('.').pop() || '';
-
-                this.link.path = filePath;
-                this.link.title = fileNameWithoutExtension;
-                this.link.fileType = this.detectFileType(fileName);
-                this.link.size = file.size;
-                this.link.createdDate = file.ctime;
-                this.updateModalContent();
-            }
-        }
-    }
-
-    private detectFileType(fileName: string): string {
-        const extension = fileName.split('.').pop()?.toLowerCase();
-        const mimeMap: { [key: string]: string } = {
-            'pdf': 'application/pdf',
-            'doc': 'application/msword',
-            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'xls': 'application/vnd.ms-excel',
-            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'ppt': 'application/vnd.ms-powerpoint',
-            'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            'txt': 'text/plain',
-            'csv': 'text/csv',
-            'jpg': 'image/jpeg',
-            'jpeg': 'image/jpeg',
-            'png': 'image/png',
-            'gif': 'image/gif',
-            'svg': 'image/svg+xml',
-            'mp3': 'audio/mpeg',
-            'mp4': 'video/mp4',
-            'json': 'application/json',
-            'xml': 'application/xml',
-            'zip': 'application/zip',
-            'rar': 'application/x-rar-compressed',
-            '7z': 'application/x-7z-compressed',
-            'md': 'text/markdown',
-            'html': 'text/html',
-            'css': 'text/css',
-            'js': 'application/javascript'
-        };
-
-        return extension ? (mimeMap[extension] || 'application/octet-stream') : 'unknown';
-    }
-
     private async saveEntry() {
         if (this.isEditing) {
             await this.plugin.externalLinkService.editExternalLink(this.link, this.link);
@@ -232,7 +249,7 @@ export class AddExternalLinkModal extends Modal {
         this.close();
     }
 
-    updateModalContent() {
+    private updateModalContent() {
         const titleInput = this.contentEl.querySelector('#title') as HTMLInputElement;
         const fileTypeInput = this.contentEl.querySelector('#fileType') as HTMLInputElement;
         const sizeInput = this.contentEl.querySelector('#size') as HTMLInputElement;
