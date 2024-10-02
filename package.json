@@ -5,7 +5,6 @@
   "main": "main.js",
   "files": [
     "main.js",
-    "build",
     "manifest.json",
     "styles.css"
   ],

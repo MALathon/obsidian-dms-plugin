@@ -10,4 +10,3 @@ node_modules/
 
 # Explicitly include main.js
 !main.js
-!build
