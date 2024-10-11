@@ -1,13 +1,28 @@
-import { Plugin, TFile, Notice } from 'obsidian';
-import { DMSSettingTab } from './DMSSettingTab';
+import { Plugin, TFile, Notice, App } from 'obsidian';
+import { DMSSettingsTab } from './DMSSettingsTab';
 import { DMSView } from './DMSView';
 import { ProxyNoteManager } from './ProxyNoteManager';
 import { ExternalLinkService } from './ExternalLinkService';
 import { DMSSettings, ExternalLink } from './types';
 import { AddExternalLinkModal } from './AddExternalLinkModal';
+import { BuildInfo } from './buildInfo';
+import buildInfo from './buildInfo.json';
+
+// Add this type declaration
+declare module "obsidian" {
+    interface App {
+        setting: {
+            open: () => void;
+            openTabById: (tabId: string) => void;
+        }
+    }
+}
 
 const DEFAULT_SETTINGS: DMSSettings = {
-    proxyNotesPath: ''
+    proxyNotesPath: '',
+    audiences: [],
+    categories: [],
+    tags: []
 }
 
 export default class DMSPlugin extends Plugin {
@@ -22,17 +37,19 @@ export default class DMSPlugin extends Plugin {
         // Ensure the proxy notes folder exists
         await this.ensureProxyNotesFolder();
 
-        this.proxyNoteManager = new ProxyNoteManager(this.app, this.settings.proxyNotesPath);
         this.externalLinkService = new ExternalLinkService(this, this.settings);
+        this.proxyNoteManager = new ProxyNoteManager(this.app, this.settings.proxyNotesPath, this.externalLinkService);
+        await this.externalLinkService.loadExternalLinks(); // Load external links on plugin load
 
-        this.addSettingTab(new DMSSettingTab(this.app, this));
+        this.addSettingTab(new DMSSettingsTab(this.app, this));
 
         this.registerView('dms-view', (leaf) => {
             this.dmsView = new DMSView(leaf, this);
             return this.dmsView;
         });
 
-        this.addRibbonIcon('folder', 'Open DMS View', () => {
+        const buildNumber = (buildInfo as BuildInfo).buildNumber;
+        this.addRibbonIcon('folder', `Open DMS View (Build ${buildNumber})`, () => {
             this.activateView();
         });
 
@@ -151,5 +168,39 @@ export default class DMSPlugin extends Plugin {
         if (frontmatter && frontmatter.external_path) {
             this.externalLinkService.openExternalFile(frontmatter.external_path);
         }
+    }
+
+    async saveData(data: any): Promise<void> {
+        await super.saveData(data);
+        console.log('Data saved:', data);
+    }
+
+    async addNewTag(tag: string) {
+        if (!this.settings.tags.includes(tag)) {
+            this.settings.tags.push(tag);
+            await this.saveSettings();
+        }
+    }
+
+    async addNewCategory(category: string) {
+        if (!this.settings.categories.includes(category)) {
+            this.settings.categories.push(category);
+            await this.saveSettings();
+        }
+    }
+
+    async addNewAudience(audience: string) {
+        if (!this.settings.audiences.includes(audience)) {
+            this.settings.audiences.push(audience);
+            await this.saveSettings();
+        }
+    }
+
+    openSettings(): void {
+        // Open the settings tab
+        this.app.setting.open();
+        
+        // Focus on our plugin's tab
+        this.app.setting.openTabById('dms-plugin');
     }
 }

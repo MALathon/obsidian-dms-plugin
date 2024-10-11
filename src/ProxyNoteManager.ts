@@ -1,12 +1,16 @@
 import { App, TFile, Notice } from 'obsidian';
+import { ExternalLink } from './types';
+import { ExternalLinkService } from './ExternalLinkService';
 
 export class ProxyNoteManager {
     private app: App;
     private proxyNotesPath: string;
+    private externalLinkService: ExternalLinkService;
 
-    constructor(app: App, proxyNotesPath: string) {
+    constructor(app: App, proxyNotesPath: string, externalLinkService: ExternalLinkService) {
         this.app = app;
         this.proxyNotesPath = proxyNotesPath;
+        this.externalLinkService = externalLinkService;
     }
 
     updateProxyNotesPath(newPath: string) {
@@ -42,30 +46,41 @@ export class ProxyNoteManager {
     }
 
     handleDeletedProxyNote(file: TFile) {
-        // Implement logic to handle when a proxy note is deleted
-        // For example, you might want to remove it from an index or notify the user
+        const externalLink = this.findExternalLinkByProxyNote(file);
+        if (externalLink) {
+            this.externalLinkService.deleteExternalLink(externalLink);
+        }
         new Notice(`Proxy note deleted: ${file.path}`);
     }
 
     handleRenamedProxyNote(file: TFile, oldPath: string) {
-        // Implement logic to handle when a proxy note is renamed
-        // For example, you might want to update an index or check if the new name is valid
+        const externalLink = this.findExternalLinkByProxyNote(file);
+        if (externalLink) {
+            externalLink.title = file.basename;
+            this.externalLinkService.editExternalLink(externalLink);
+        }
         new Notice(`Proxy note renamed from ${oldPath} to ${file.path}`);
     }
 
     handleChangedProxyNote(file: TFile) {
-        // Implement logic to handle when a proxy note's content changes
-        // For example, you might want to update metadata or check for consistency
+        const externalLink = this.findExternalLinkByProxyNote(file);
+        if (externalLink) {
+            externalLink.lastModified = Date.now();
+            this.externalLinkService.editExternalLink(externalLink);
+        }
         new Notice(`Proxy note changed: ${file.path}`);
     }
 
+    private findExternalLinkByProxyNote(file: TFile): ExternalLink | undefined {
+        const links = this.externalLinkService.getAllExternalLinks();
+        return links.find((link: ExternalLink) => this.generateFileName(link.title) === file.name);
+    }
+
     private generateFileName(title: string): string {
-        // Implement logic to generate a valid file name from the title
         return `${title.replace(/[^a-zA-Z0-9]/g, '_')}.md`;
     }
 
     private generateProxyNoteContent(externalLink: string, metadata: any): string {
-        // Implement logic to generate the content of the proxy note
         return `---
 title: ${metadata.title}
 external-link: ${externalLink}

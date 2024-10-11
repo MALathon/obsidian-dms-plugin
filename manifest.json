@@ -1,17 +1,10 @@
 {
   "id": "dms-plugin",
   "name": "Document Management System",
-  "version": "1.0.0",
+  "version": "1.0.0.47",
   "minAppVersion": "0.15.0",
   "description": "An external document management system plugin for Obsidian",
   "author": "Mark Lifson",
   "authorUrl": "https://github.com/MALathon/obsidian-dms-plugin",
-  "isDesktopOnly": false,
-  "permissions": {
-    "openExternal": true
-  },
-  "main": "main.js",
-  "styles": [
-    "styles.css"
-  ]
+  "isDesktopOnly": false
 }

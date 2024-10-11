@@ -1,109 +1,268 @@
 /* DMS Plugin Styles */
 
 .dms-modal {
+    max-width: 600px;
+    width: 100%;
     padding: 20px;
 }
 
-.dms-modal h1 {
-    margin-bottom: 15px;
+.dms-modal h1, .dms-modal h2 {
+    margin-bottom: 20px;
     color: var(--text-normal);
 }
 
-.dms-modal input {
+.dms-form-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.dms-modal input, .dms-modal textarea, .dms-modal select {
     width: 100%;
-    margin-bottom: 10px;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    padding: 8px;
 }
 
 .dms-modal button {
-    margin-top: 10px;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
 }
 
-.dms-settings {
-    padding: 10px;
+.dms-modal button:hover {
+    background-color: var(--interactive-accent-hover);
 }
 
-.dms-settings .setting-item {
-    border-top: 1px solid var(--background-modifier-border);
-    padding-top: 10px;
-}
-
-.dms-search-result {
-    padding: 5px;
-    border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.dms-search-result:hover {
-    background-color: var(--background-modifier-hover);
-}
-
-.dms-modal h2 {
+/* Dropzone styles */
+.dms-dropzone-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     margin-bottom: 20px;
 }
 
+.dms-dropzone {
+    width: 100%;
+    height: 100px;
+    border: 2px dashed var(--background-modifier-border);
+    border-radius: 4px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: var(--background-primary);
+    color: var(--text-muted);
+}
+
+.dms-dropzone:hover, .dms-dropzone-active {
+    border-color: var(--interactive-accent);
+    color: var(--text-normal);
+}
+
+.dms-file-preview {
+    display: flex;
+    align-items: center;
+    margin-top: 10px;
+    padding: 5px 10px;
+    background-color: var(--background-secondary);
+    border-radius: 4px;
+}
+
+.dms-file-icon {
+    font-size: 1.5em;
+    margin-right: 10px;
+}
+
+.dms-file-name {
+    flex-grow: 1;
+}
+
+.dms-remove-file {
+    cursor: pointer;
+    font-weight: bold;
+    margin-left: 10px;
+}
+
+/* Form fields */
+.dms-modal .setting-item {
+    border-top: none;
+    padding-top: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.dms-modal .setting-item-info {
+    margin-bottom: 8px;
+}
+
+.dms-modal .setting-item-control {
+    width: 100%;
+}
+
+.dms-modal textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+/* Multi-select fields */
+.dms-modal .multi-select-container {
+    width: 100%;
+}
+
+.dms-modal .multi-select-input {
+    width: 100%;
+    margin-bottom: 5px;
+}
+
+.dms-modal .multi-select-dropdown {
+    width: 100%;
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background-color: var(--background-primary);
+}
+
+.dms-modal .multi-select-option {
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+.dms-modal .multi-select-option:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.dms-modal .selected-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+.dms-modal .selected-item {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    padding: 2px 5px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+}
+
+.dms-modal .selected-item .remove {
+    margin-left: 5px;
+    cursor: pointer;
+}
+
+/* Align form fields */
+.dms-modal .setting-item-name {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.dms-modal .setting-item-description {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .dms-modal {
+        max-width: 100%;
+    }
+}
+
+/* Table styles */
 .dms-table {
     width: 100%;
     border-collapse: collapse;
+    margin-top: 20px;
 }
 
 .dms-table th, .dms-table td {
+    padding: 10px;
     border: 1px solid var(--background-modifier-border);
-    padding: 8px;
     text-align: left;
 }
 
 .dms-table th {
     background-color: var(--background-secondary);
+    font-weight: bold;
 }
 
-.dms-table button {
+.dms-table tr:nth-child(even) {
+    background-color: var(--background-secondary);
+}
+
+/* Pill styles */
+.dms-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    margin: 2px;
+    border-radius: 12px;
+    font-size: 12px;
+    color: var(--text-on-accent);
+}
+
+.dms-category-pill {
+    background-color: var(--interactive-accent);
+}
+
+.dms-tag-pill {
+    background-color: var(--text-accent);
+}
+
+.dms-audience-pill {
+    background-color: var(--text-muted);
+}
+
+.dms-pill-remove {
+    margin-left: 4px;
+    cursor: pointer;
+}
+
+/* Action button styles */
+.dms-action-btn {
     margin-right: 5px;
+    padding: 2px 5px;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
 }
 
-/* Add these styles to your existing styles.css */
-
-.workspace-leaf-content[data-type="dms-view"] .view-content {
-    padding: 0 10px;
+.dms-action-btn:hover {
+    background-color: var(--interactive-accent-hover);
 }
 
-.workspace-leaf-content[data-type="dms-view"] .dms-table {
-    font-size: 0.9em;
+/* New styles for settings icon and external link */
+.dms-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
 }
 
-.workspace-leaf-content[data-type="dms-view"] .dms-table th,
-.workspace-leaf-content[data-type="dms-view"] .dms-table td {
-    padding: 4px;
-}
-
-.workspace-leaf-content[data-type="dms-view"] button {
-    padding: 2px 4px;
-    font-size: 0.8em;
+.dms-settings-icon {
+    cursor: pointer;
+    font-size: 20px;
 }
 
 .dms-external-link {
     color: var(--text-accent);
-    text-decoration: underline;
-}
-
-.dms-external-link:hover {
     text-decoration: none;
 }
 
-.dms-state-error {
-    color: var(--text-error);
-    font-weight: bold;
-}
-
-/* Dropzone styles */
-
-.dms-dropzone {
-    border: 2px dashed var(--background-modifier-border);
-    border-radius: 4px;
-    padding: 20px;
-    text-align: center;
-    cursor: pointer;
-    margin-bottom: 20px;
-}
-
-.dms-dropzone-active {
-    background-color: var(--background-modifier-hover);
+.dms-external-link:hover {
+    text-decoration: underline;
 }

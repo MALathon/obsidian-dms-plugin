@@ -2,7 +2,9 @@ import { TFile } from 'obsidian';
 
 export interface DMSSettings {
     proxyNotesPath: string;
-    // Add any other settings properties here
+    audiences: string[];
+    categories: string[];
+    tags: string[];
 }
 
 // Remove this line as it's redundant

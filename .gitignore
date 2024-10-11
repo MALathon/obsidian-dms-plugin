@@ -10,3 +10,7 @@ node_modules/
 
 # Explicitly include main.js
 !main.js
+
+desktop.ini
+
+data.json

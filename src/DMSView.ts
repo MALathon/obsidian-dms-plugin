@@ -1,10 +1,13 @@
-import { ItemView, WorkspaceLeaf, Notice } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, Modal, Setting, App } from 'obsidian';
 import DMSPlugin from './main';
 import { ExternalLink } from './types';
+import { BuildInfo } from './buildInfo';
+import buildInfo from './buildInfo.json';
+import moment from 'moment';
 
 export class DMSView extends ItemView {
     plugin: DMSPlugin;
-    contentEl: HTMLElement; // Change this to contentEl to match ItemView
+    contentEl: HTMLElement;
     private tableElement: HTMLTableElement;
     private searchInput: HTMLInputElement;
     private categorySelect: HTMLSelectElement;
@@ -25,9 +28,22 @@ export class DMSView extends ItemView {
 
     async onOpen() {
         this.containerEl = this.contentEl.createDiv({ cls: 'dms-view-container' });
+        this.createHeader();
         this.createControls();
         this.createTable();
         this.updateView();
+        await this.createBuildInfo();
+
+        this.addEventListeners();
+    }
+
+    private createHeader() {
+        const headerEl = this.containerEl.createEl('div', { cls: 'dms-header' });
+        headerEl.createEl('h2', { text: 'Document Management System' });
+        const settingsIcon = headerEl.createEl('span', { cls: 'dms-settings-icon', text: '⚙️' });
+        settingsIcon.addEventListener('click', () => {
+            this.plugin.openSettings();
+        });
     }
 
     private createControls() {
@@ -66,93 +82,186 @@ export class DMSView extends ItemView {
     }
 
     updateView() {
-        const filteredEntries = this.getFilteredEntries();
-        this.renderEntries(filteredEntries);
+        const links = this.plugin.externalLinkService.getAllExternalLinks();
+        const filteredLinks = this.filterLinks(links);
+        const sortedLinks = this.sortLinks(filteredLinks);
+        const tableContent = this.generateTableContent(sortedLinks);
+        
+        if (this.tableElement.innerHTML !== tableContent) {
+            this.tableElement.innerHTML = tableContent;
+        }
+        
         this.updateActiveFilters();
     }
 
-    private getFilteredEntries(): ExternalLink[] {
-        let entries = this.plugin.externalLinkService.getAllExternalLinks();
-        const searchQuery = this.searchInput.value.toLowerCase();
+    private generateTableContent(entries: ExternalLink[]): string {
+        let content = '<thead><tr>';
+        ['Title', 'Summary', 'File Type', 'Size', 'Created Date', 'Categories', 'Tags', 'Audience', 'Actions'].forEach(header => {
+            content += `<th>${header}</th>`;
+        });
+        content += '</tr></thead><tbody>';
+
+        entries.forEach(entry => {
+            content += `
+                <tr>
+                    <td><a href="#" class="dms-external-link" data-path="${entry.path}">${entry.title}</a></td>
+                    <td>${entry.summary}</td>
+                    <td>${entry.fileType}</td>
+                    <td>${this.formatFileSize(entry.size)}</td>
+                    <td>${moment(entry.createdDate).format('YYYY-MM-DD')}</td>
+                    <td>${this.createPillsHTML(entry.categories, 'category', entry)}</td>
+                    <td>${this.createPillsHTML(entry.tags, 'tag', entry)}</td>
+                    <td>${this.createPillsHTML(entry.audience, 'audience', entry)}</td>
+                    <td>${this.createActionButtonsHTML(entry)}</td>
+                </tr>
+            `;
+        });
+
+        content += '</tbody>';
+        return content;
+    }
+
+    private filterLinks(links: ExternalLink[]): ExternalLink[] {
+        const searchTerm = this.searchInput.value.toLowerCase();
         const selectedCategory = this.categorySelect.value;
         const selectedTag = this.tagSelect.value;
 
-        return entries.filter(entry => 
-            (searchQuery === '' || 
-             entry.title.toLowerCase().includes(searchQuery) ||
-             entry.summary.toLowerCase().includes(searchQuery)) &&
-            (selectedCategory === '' || entry.categories.includes(selectedCategory)) &&
-            (selectedTag === '' || entry.tags.includes(selectedTag))
-        );
+        return links.filter(link => {
+            const matchesSearch = link.title.toLowerCase().includes(searchTerm) ||
+                                 link.summary.toLowerCase().includes(searchTerm) ||
+                                 link.notes.toLowerCase().includes(searchTerm);
+            const matchesCategory = !selectedCategory || link.categories.includes(selectedCategory);
+            const matchesTag = !selectedTag || link.tags.includes(selectedTag);
+
+            return matchesSearch && matchesCategory && matchesTag;
+        });
+    }
+
+    private sortLinks(links: ExternalLink[]): ExternalLink[] {
+        return links.sort((a, b) => b.createdDate - a.createdDate);
+    }
+
+    private createPillsHTML(items: string[], type: 'category' | 'tag' | 'audience', entry: ExternalLink): string {
+        return items.map(item => `
+            <span class="dms-pill dms-${type}-pill">
+                ${item}
+                <span class="dms-pill-remove" data-type="${type}" data-item="${item}" data-entry-path="${entry.path}">×</span>
+            </span>
+        `).join('');
+    }
+
+    private createActionButtonsHTML(entry: ExternalLink): string {
+        return `
+            <button class="dms-action-btn edit-btn" data-path="${entry.path}">Edit</button>
+            <button class="dms-action-btn delete-btn" data-path="${entry.path}">Delete</button>
+            <button class="dms-action-btn copy-path-btn" data-path="${entry.path}">Copy Path</button>
+        `;
     }
 
     private renderEntries(entries: ExternalLink[]) {
         const tbody = this.tableElement.querySelector('tbody');
         if (!tbody) return;
 
-        tbody.innerHTML = '';
-
-        if (entries.length === 0) {
-            const row = tbody.createEl('tr');
-            row.createEl('td', { attr: { colspan: '9' }, text: 'No entries found.' });
-            return;
-        }
+        tbody.empty();
 
         entries.forEach(entry => {
             const row = tbody.createEl('tr');
-            row.dataset.entryDate = entry.createdDate.toString();
-
-            // Title with link
             const titleCell = row.createEl('td');
-            const linkElement = titleCell.createEl('a', { text: entry.title, attr: { href: entry.path } });
-            linkElement.addEventListener('click', (event) => {
-                event.preventDefault();
+            const titleLink = titleCell.createEl('a', { 
+                text: entry.title,
+                cls: 'dms-external-link',
+                attr: { href: entry.path }
+            });
+            titleLink.addEventListener('click', (e) => {
+                e.preventDefault();
                 this.plugin.externalLinkService.openExternalFile(entry.path);
             });
 
-            // Other columns
             row.createEl('td', { text: entry.summary });
             row.createEl('td', { text: entry.fileType });
-            row.createEl('td', { text: entry.size ? `${entry.size} bytes` : '' });
-            row.createEl('td', { text: new Date(entry.createdDate).toLocaleDateString() });
+            row.createEl('td', { text: this.formatFileSize(entry.size) });
+            row.createEl('td', { text: moment(entry.createdDate).format('YYYY-MM-DD') });
+            
+            const categoriesCell = row.createEl('td');
+            this.createPills(categoriesCell, entry.categories, 'category', entry);
 
-            // Categories, Tags, and Audience pills
-            this.createPills(row.createEl('td'), entry.categories);
-            this.createPills(row.createEl('td'), entry.tags);
-            this.createPills(row.createEl('td'), entry.audience);
+            const tagsCell = row.createEl('td');
+            this.createPills(tagsCell, entry.tags, 'tag', entry);
 
-            // Actions
+            const audienceCell = row.createEl('td');
+            this.createPills(audienceCell, entry.audience, 'audience', entry);
+
             const actionsCell = row.createEl('td');
-            const editBtn = actionsCell.createEl('button', { text: 'Edit' });
-            editBtn.addEventListener('click', () => this.plugin.addOrEditEntry(entry));
-
-            const deleteBtn = actionsCell.createEl('button', { text: 'Delete' });
-            deleteBtn.addEventListener('click', () => this.deleteEntry(entry));
-
-            const copyPathBtn = actionsCell.createEl('button', { text: 'Copy Path' });
-            copyPathBtn.addEventListener('click', () => this.copyPath(entry.path));
+            this.createActionButtons(actionsCell, entry);
         });
     }
 
-    private createPills(container: HTMLElement, items: string[]) {
-        if (items && items.length > 0) {
-            items.forEach(item => {
-                container.createEl('span', { text: item, cls: 'pill' });
+    private createPills(container: HTMLElement, items: string[], type: 'category' | 'tag' | 'audience', entry: ExternalLink) {
+        items.forEach(item => {
+            const pill = container.createEl('span', { 
+                text: item, 
+                cls: `dms-pill dms-${type}-pill` 
             });
-        } else {
-            container.setText('None');
+            const removeBtn = pill.createEl('span', { 
+                text: '×', 
+                cls: 'dms-pill-remove' 
+            });
+            removeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.removeItem(type, item, entry);
+            });
+        });
+    }
+
+    private removeItem(type: 'category' | 'tag' | 'audience', item: string, entry: ExternalLink) {
+        const arrayName = type === 'audience' ? 'audience' : `${type}s`;
+        const array = entry[arrayName as keyof ExternalLink] as string[];
+        if (Array.isArray(array)) {
+            (entry[arrayName as keyof ExternalLink] as string[]) = array.filter((i: string) => i !== item);
+            this.plugin.externalLinkService.editExternalLink(entry);
+            this.updateView();
         }
     }
 
-    private deleteEntry(entry: ExternalLink) {
-        this.plugin.externalLinkService.deleteExternalLink(entry);
-        this.updateView();
-        new Notice(`Deleted entry: ${entry.title}`);
+    private createActionButtons(container: HTMLElement, entry: ExternalLink) {
+        const editBtn = container.createEl('button', { text: 'Edit', cls: 'dms-action-btn' });
+        editBtn.addEventListener('click', () => this.plugin.addOrEditEntry(entry));
+
+        const deleteBtn = container.createEl('button', { text: 'Delete', cls: 'dms-action-btn' });
+        deleteBtn.addEventListener('click', () => this.deleteEntry(entry));
+
+        const copyPathBtn = container.createEl('button', { text: 'Copy Path', cls: 'dms-action-btn' });
+        copyPathBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(entry.path);
+            new Notice('File path copied to clipboard!');
+        });
     }
 
-    private copyPath(path: string) {
-        navigator.clipboard.writeText(path);
-        new Notice('File path copied to clipboard!');
+    private deleteEntry(entry: ExternalLink) {
+        const confirmationModal = new ConfirmationModal(
+            this.app,
+            'Delete Entry',
+            `Are you sure you want to delete "${entry.title}"?
+            This action cannot be undone.`,
+            async (confirmed: boolean) => {
+                if (confirmed) {
+                    await this.plugin.externalLinkService.deleteExternalLink(entry);
+                    this.updateView();
+                    new Notice('Entry deleted successfully');
+                }
+            }
+        );
+        confirmationModal.open();
+    }
+
+    private formatFileSize(size: number): string {
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let i = 0;
+        while (size >= 1024 && i < units.length - 1) {
+            size /= 1024;
+            i++;
+        }
+        return `${size.toFixed(2)} ${units[i]}`;
     }
 
     private updateCategorySelect() {
@@ -211,15 +320,12 @@ export class DMSView extends ItemView {
     }
 
     updateTable() {
-        // Clear any existing filters
-        this.clearFilters();
-        
         const links = this.plugin.externalLinkService.getAllExternalLinks();
         // Sort links by most recently added/modified
         links.sort((a, b) => b.createdDate - a.createdDate);
         
         // Rebuild the table with the updated links
-        this.buildTable(links);
+        this.renderEntries(links);
     }
 
     clearFilters() {
@@ -227,28 +333,98 @@ export class DMSView extends ItemView {
         // This will depend on how you've implemented filtering
     }
 
-    buildTable(links: ExternalLink[]) {
-        const tableBody = this.tableElement.querySelector('tbody');
-        if (!tableBody) return;
-
-        tableBody.empty();
-
-        links.forEach(link => {
-            const row = tableBody.createEl('tr');
-            row.createEl('td').createEl('a', {
-                text: link.title,
-                href: link.path,
-                cls: 'dms-external-link',
-                attr: {
-                    'data-path': link.path
-                }
-            }).addEventListener('click', (e: MouseEvent) => {
-                e.preventDefault();
-                this.plugin.externalLinkService.openExternalFile(link.path);
-            });
-            // ... other columns ...
-        });
+    // Remove the buildTable method as it's redundant with renderEntries
+    private async createBuildInfo() {
+        const buildInfoEl = this.containerEl.createEl('div', { cls: 'dms-build-info' });
+        
+        try {
+            const manifest = await this.plugin.app.vault.adapter.read('.obsidian/plugins/dms-plugin/manifest.json');
+            const manifestData = JSON.parse(manifest);
+            const version = manifestData.version;
+            const buildNumber = version.split('.')[3] || 'Unknown';
+            buildInfoEl.setText(`Build: ${buildNumber}`);
+        } catch (error) {
+            console.error('Failed to fetch build number:', error);
+            buildInfoEl.setText('Build: Unknown');
+        }
     }
 
-    // ... rest of the class ...
+    private addEventListeners() {
+        this.tableElement.addEventListener('click', (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            
+            if (target.classList.contains('dms-external-link')) {
+                e.preventDefault();
+                const path = target.getAttribute('data-path');
+                if (path) this.plugin.externalLinkService.openExternalFile(path);
+            }
+
+            if (target.classList.contains('dms-pill-remove')) {
+                const type = target.getAttribute('data-type') as 'category' | 'tag' | 'audience';
+                const item = target.getAttribute('data-item');
+                const entryPath = target.getAttribute('data-entry-path');
+                if (type && item && entryPath) {
+                    const entry = this.plugin.externalLinkService.getExternalLinkByPath(entryPath);
+                    if (entry) this.removeItem(type, item, entry);
+                }
+            }
+
+            if (target.classList.contains('edit-btn')) {
+                const path = target.getAttribute('data-path');
+                if (path) {
+                    const entry = this.plugin.externalLinkService.getExternalLinkByPath(path);
+                    if (entry) this.plugin.addOrEditEntry(entry);
+                }
+            }
+
+            if (target.classList.contains('delete-btn')) {
+                const path = target.getAttribute('data-path');
+                if (path) {
+                    const entry = this.plugin.externalLinkService.getExternalLinkByPath(path);
+                    if (entry) this.deleteEntry(entry);
+                }
+            }
+
+            if (target.classList.contains('copy-path-btn')) {
+                const path = target.getAttribute('data-path');
+                if (path) {
+                    navigator.clipboard.writeText(path);
+                    new Notice('File path copied to clipboard!');
+                }
+            }
+        });
+    }
+}
+
+class ConfirmationModal extends Modal {
+    onSubmit: (confirmed: boolean) => void;
+    message: string;
+
+    constructor(app: App, title: string, message: string, onSubmit: (confirmed: boolean) => void) {
+        super(app);
+        this.titleEl.setText(title);
+        this.message = message;
+        this.onSubmit = onSubmit;
+    }
+
+    onOpen() {
+        const { contentEl } = this;
+
+        contentEl.createEl('p', { text: this.message });
+
+        new Setting(contentEl)
+            .addButton(btn => btn
+                .setButtonText('Cancel')
+                .onClick(() => {
+                    this.close();
+                    this.onSubmit(false);
+                }))
+            .addButton(btn => btn
+                .setButtonText('Confirm')
+                .setCta()
+                .onClick(() => {
+                    this.close();
+                    this.onSubmit(true);
+                }));
+    }
 }
